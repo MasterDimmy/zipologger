@@ -2,12 +2,12 @@ golang-lru
 ==========
 
 This provides the `lru` package which implements a fixed-size
-thread safe LRU cache. It is based on the cache in Groupcache.
+thread safe LRU cache with expire feature. It is based on [golang-lru](https://github.com/hashicorp/golang-lru).
 
 Documentation
 =============
 
-Full docs are available on [Godoc](http://godoc.org/github.com/hashicorp/golang-lru)
+Full docs are available on [Godoc](http://godoc.org/github.com/hnlq715/golang-lru)
 
 Example
 =======

@@ -2,8 +2,9 @@ package lru
 
 import (
 	"sync"
+	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"golang-lru/simplelru"
 )
 
 // ARCCache is a thread-safe fixed size Adaptive Replacement Cache (ARC).
@@ -173,6 +174,101 @@ func (c *ARCCache) Add(key, value interface{}) {
 
 	// Add to the recently seen list
 	c.t1.Add(key, value)
+	return
+}
+
+// Add adds a value to the cache.
+func (c *ARCCache) AddWithExpire(key, value interface{}, expire time.Duration) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// Check if the value is contained in T1 (recent), and potentially
+	// promote it to frequent T2
+	if c.t1.Contains(key) {
+		c.t1.Remove(key)
+		c.t2.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Check if the value is already in T2 (frequent) and update it
+	if c.t2.Contains(key) {
+		c.t2.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Check if this value was recently evicted as part of the
+	// recently used list
+	if c.b1.Contains(key) {
+		// T1 set is too small, increase P appropriately
+		delta := 1
+		b1Len := c.b1.Len()
+		b2Len := c.b2.Len()
+		if b2Len > b1Len {
+			delta = b2Len / b1Len
+		}
+		if c.p+delta >= c.size {
+			c.p = c.size
+		} else {
+			c.p += delta
+		}
+
+		// Potentially need to make room in the cache
+		if c.t1.Len()+c.t2.Len() >= c.size {
+			c.replace(false)
+		}
+
+		// Remove from B1
+		c.b1.Remove(key)
+
+		// Add the key to the frequently used list
+		c.t2.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Check if this value was recently evicted as part of the
+	// frequently used list
+	if c.b2.Contains(key) {
+		// T2 set is too small, decrease P appropriately
+		delta := 1
+		b1Len := c.b1.Len()
+		b2Len := c.b2.Len()
+		if b1Len > b2Len {
+			delta = b1Len / b2Len
+		}
+		if delta >= c.p {
+			c.p = 0
+		} else {
+			c.p -= delta
+		}
+
+		// Potentially need to make room in the cache
+		if c.t1.Len()+c.t2.Len() >= c.size {
+			c.replace(true)
+		}
+
+		// Remove from B2
+		c.b2.Remove(key)
+
+		// Add the key to the frequntly used list
+		c.t2.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Potentially need to make room in the cache
+	if c.t1.Len()+c.t2.Len() >= c.size {
+		c.replace(false)
+	}
+
+	// Keep the size of the ghost buffers trim
+	if c.b1.Len() > c.size-c.p {
+		c.b1.RemoveOldest()
+	}
+	if c.b2.Len() > c.p {
+		c.b2.RemoveOldest()
+	}
+
+	// Add to the recently seen list
+	c.t1.AddWithExpire(key, value, expire)
 	return
 }
 

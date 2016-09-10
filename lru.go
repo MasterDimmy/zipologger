@@ -5,8 +5,9 @@ package lru
 
 import (
 	"sync"
+	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"golang-lru/simplelru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
@@ -47,6 +48,13 @@ func (c *Cache) Add(key, value interface{}) bool {
 	return c.lru.Add(key, value)
 }
 
+// Add adds a value to the cache with expire.  Returns true if an eviction occurred.
+func (c *Cache) AddWithExpire(key, value interface{}, expire time.Duration) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.lru.AddWithExpire(key, value, expire)
+}
+
 // Get looks up a key's value from the cache.
 func (c *Cache) Get(key interface{}) (interface{}, bool) {
 	c.lock.Lock()
@@ -81,6 +89,21 @@ func (c *Cache) ContainsOrAdd(key, value interface{}) (ok, evict bool) {
 		return true, false
 	} else {
 		evict := c.lru.Add(key, value)
+		return false, evict
+	}
+}
+
+// ContainsOrAdd checks if a key is in the cache  without updating the
+// recent-ness or deleting it for being stale,  and if not, adds the value with expire.
+// Returns whether found and whether an eviction occurred.
+func (c *Cache) ContainsOrAddWithExpire(key, value interface{}, expire time.Duration) (ok, evict bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.lru.Contains(key) {
+		return true, false
+	} else {
+		evict := c.lru.AddWithExpire(key, value, expire)
 		return false, evict
 	}
 }

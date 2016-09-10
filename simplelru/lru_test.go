@@ -1,6 +1,9 @@
 package simplelru
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
@@ -163,5 +166,52 @@ func TestLRU_Peek(t *testing.T) {
 	l.Add(3, 3)
 	if l.Contains(1) {
 		t.Errorf("should not have updated recent-ness of 1")
+	}
+}
+
+// Test that expire feature
+func TestLRU_Expire(t *testing.T) {
+	l, err := NewLRU(2, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	l.AddWithExpire(1, 1, 1*time.Second)
+	l.AddWithExpire(2, 2, 2*time.Second)
+
+	if !l.Contains(1) {
+		t.Errorf("1 should be contained")
+	}
+	time.Sleep(1 * time.Second)
+	if l.Contains(1) {
+		t.Errorf("1 should not be contained")
+	}
+	if !l.Contains(2) {
+		t.Errorf("2 should be contained")
+	}
+	time.Sleep(1 * time.Second)
+	if l.Contains(2) {
+		t.Errorf("2 should not be contained")
+	}
+
+	l.AddWithExpire(1, 1, 1*time.Second)
+	l.AddWithExpire(2, 2, 2*time.Second)
+	_, ok := l.Get(1)
+	if !ok {
+		t.Fatalf("1 should not be evicted")
+	}
+	time.Sleep(1 * time.Second)
+	_, ok = l.Get(1)
+	if ok {
+		t.Fatalf("1 should be evicted")
+	}
+	_, ok = l.Get(2)
+	if !ok {
+		t.Fatalf("2 should not be evicted")
+	}
+	time.Sleep(1 * time.Second)
+	_, ok = l.Get(2)
+	if ok {
+		t.Fatalf("2 should be evicted")
 	}
 }
