@@ -3,8 +3,9 @@ package lru
 import (
 	"fmt"
 	"sync"
+	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"golang-lru/simplelru"
 )
 
 const (
@@ -136,6 +137,40 @@ func (c *TwoQueueCache) Add(key, value interface{}) {
 	// Add to the recently seen list
 	c.ensureSpace(false)
 	c.recent.Add(key, value)
+	return
+}
+
+func (c *TwoQueueCache) AddWithExpire(key, value interface{}, expire time.Duration) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// Check if the value is frequently used already,
+	// and just update the value
+	if c.frequent.Contains(key) {
+		c.frequent.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Check if the value is recently used, and promote
+	// the value into the frequent list
+	if c.recent.Contains(key) {
+		c.recent.Remove(key)
+		c.frequent.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// If the value was recently evicted, add it to the
+	// frequently used list
+	if c.recentEvict.Contains(key) {
+		c.ensureSpace(true)
+		c.recentEvict.Remove(key)
+		c.frequent.AddWithExpire(key, value, expire)
+		return
+	}
+
+	// Add to the recently seen list
+	c.ensureSpace(false)
+	c.recent.AddWithExpire(key, value, expire)
 	return
 }
 
