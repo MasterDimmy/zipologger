@@ -103,12 +103,10 @@ func (c *LRU) AddWithExpire(key, value interface{}, expire time.Duration) bool {
 	return evict
 }
 
-// Get looks up a key's value from the cache, updating the recent-ness
-// or deleting it for being stale or expired.
+// Get looks up a key's value from the cache.
 func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 	if ent, ok := c.items[key]; ok {
 		if ent.Value.(*entry).IsExpired() {
-			c.removeElement(ent)
 			return nil, false
 		}
 		c.evictList.MoveToFront(ent)
