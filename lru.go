@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"golang-lru/simplelru"
+	"github.com/hnlq715/golang-lru/simplelru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
