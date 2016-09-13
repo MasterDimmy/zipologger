@@ -5,8 +5,9 @@ package lru
 
 import (
 	"sync"
+	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hnlq715/golang-lru/simplelru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
@@ -24,6 +25,18 @@ func New(size int) (*Cache, error) {
 // callback.
 func NewWithEvict(size int, onEvicted func(key interface{}, value interface{})) (*Cache, error) {
 	lru, err := simplelru.NewLRU(size, simplelru.EvictCallback(onEvicted))
+	if err != nil {
+		return nil, err
+	}
+	c := &Cache{
+		lru: lru,
+	}
+	return c, nil
+}
+
+// NewWithExpire constructs a fixed size cache with expire feature
+func NewWithExpire(size int, expire time.Duration) (*Cache, error) {
+	lru, err := simplelru.NewLRUWithExpire(size, expire, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package simplelru
 import (
 	"container/list"
 	"errors"
+	"time"
 )
 
 // EvictCallback is used to get a callback when a cache entry is evicted
@@ -13,13 +14,22 @@ type LRU struct {
 	size      int
 	evictList *list.List
 	items     map[interface{}]*list.Element
+	expire    time.Duration
 	onEvict   EvictCallback
 }
 
 // entry is used to hold a value in the evictList
 type entry struct {
-	key   interface{}
-	value interface{}
+	key    interface{}
+	value  interface{}
+	expire *time.Time
+}
+
+func (e *entry) IsExpired() bool {
+	if e.expire == nil {
+		return false
+	}
+	return time.Now().After(*e.expire)
 }
 
 // NewLRU constructs an LRU of the given size
@@ -31,6 +41,22 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 		size:      size,
 		evictList: list.New(),
 		items:     make(map[interface{}]*list.Element),
+		expire:    0,
+		onEvict:   onEvict,
+	}
+	return c, nil
+}
+
+// NewLRUWithExpire contrusts an LRU of the given size and expire time
+func NewLRUWithExpire(size int, expire time.Duration, onEvict EvictCallback) (*LRU, error) {
+	if size <= 0 {
+		return nil, errors.New("Must provide a positive size")
+	}
+	c := &LRU{
+		size:      size,
+		evictList: list.New(),
+		items:     make(map[interface{}]*list.Element),
+		expire:    expire,
 		onEvict:   onEvict,
 	}
 	return c, nil
@@ -49,15 +75,21 @@ func (c *LRU) Purge() {
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
 func (c *LRU) Add(key, value interface{}) bool {
+	var ex *time.Time = nil
+	if c.expire != 0 {
+		expire := time.Now().Add(c.expire)
+		ex = &expire
+	}
 	// Check for existing item
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
 		ent.Value.(*entry).value = value
+		ent.Value.(*entry).expire = ex
 		return false
 	}
 
 	// Add new item
-	ent := &entry{key, value}
+	ent := &entry{key: key, value: value, expire: ex}
 	entry := c.evictList.PushFront(ent)
 	c.items[key] = entry
 
@@ -72,6 +104,9 @@ func (c *LRU) Add(key, value interface{}) bool {
 // Get looks up a key's value from the cache.
 func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 	if ent, ok := c.items[key]; ok {
+		if ent.Value.(*entry).IsExpired() {
+			return nil, false
+		}
 		c.evictList.MoveToFront(ent)
 		return ent.Value.(*entry).value, true
 	}
@@ -81,14 +116,22 @@ func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 // Check if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
 func (c *LRU) Contains(key interface{}) (ok bool) {
-	_, ok = c.items[key]
-	return ok
+	if ent, ok := c.items[key]; ok {
+		if ent.Value.(*entry).IsExpired() {
+			return false
+		}
+		return ok
+	}
+	return
 }
 
 // Returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
 func (c *LRU) Peek(key interface{}) (value interface{}, ok bool) {
 	if ent, ok := c.items[key]; ok {
+		if ent.Value.(*entry).IsExpired() {
+			return nil, false
+		}
 		return ent.Value.(*entry).value, true
 	}
 	return nil, ok

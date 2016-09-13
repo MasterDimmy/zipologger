@@ -1,6 +1,9 @@
 package simplelru
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
@@ -163,5 +166,23 @@ func TestLRU_Peek(t *testing.T) {
 	l.Add(3, 3)
 	if l.Contains(1) {
 		t.Errorf("should not have updated recent-ness of 1")
+	}
+}
+
+// Test that expire feature
+func TestLRU_Expire(t *testing.T) {
+	l, err := NewLRUWithExpire(2, 2*time.Second, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	l.Add(1, 1)
+
+	if !l.Contains(1) {
+		t.Errorf("1 should be contained")
+	}
+	time.Sleep(2 * time.Second)
+	if l.Contains(1) {
+		t.Errorf("1 should not be contained")
 	}
 }

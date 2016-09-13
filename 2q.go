@@ -3,8 +3,9 @@ package lru
 import (
 	"fmt"
 	"sync"
+	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hnlq715/golang-lru/simplelru"
 )
 
 const (
@@ -39,12 +40,24 @@ type TwoQueueCache struct {
 // New2Q creates a new TwoQueueCache using the default
 // values for the parameters.
 func New2Q(size int) (*TwoQueueCache, error) {
-	return New2QParams(size, Default2QRecentRatio, Default2QGhostEntries)
+	return New2QWithExpire(size, 0)
 }
 
 // New2QParams creates a new TwoQueueCache using the provided
 // parameter values.
 func New2QParams(size int, recentRatio float64, ghostRatio float64) (*TwoQueueCache, error) {
+	return New2QParamsWithExpire(size, 0, recentRatio, ghostRatio)
+}
+
+// New2QWithExpire creates a new TwoQueueCache using the default
+// values for the parameters with expire feature.
+func New2QWithExpire(size int, expire time.Duration) (*TwoQueueCache, error) {
+	return New2QParamsWithExpire(size, expire, Default2QRecentRatio, Default2QGhostEntries)
+}
+
+// New2QParamsWithExpire creates a new TwoQueueCache using the provided
+// parameter values with expire feature.
+func New2QParamsWithExpire(size int, expire time.Duration, recentRatio float64, ghostRatio float64) (*TwoQueueCache, error) {
 	if size <= 0 {
 		return nil, fmt.Errorf("invalid size")
 	}
@@ -60,15 +73,15 @@ func New2QParams(size int, recentRatio float64, ghostRatio float64) (*TwoQueueCa
 	evictSize := int(float64(size) * ghostRatio)
 
 	// Allocate the LRUs
-	recent, err := simplelru.NewLRU(size, nil)
+	recent, err := simplelru.NewLRUWithExpire(size, expire, nil)
 	if err != nil {
 		return nil, err
 	}
-	frequent, err := simplelru.NewLRU(size, nil)
+	frequent, err := simplelru.NewLRUWithExpire(size, expire, nil)
 	if err != nil {
 		return nil, err
 	}
-	recentEvict, err := simplelru.NewLRU(evictSize, nil)
+	recentEvict, err := simplelru.NewLRUWithExpire(evictSize, expire, nil)
 	if err != nil {
 		return nil, err
 	}
