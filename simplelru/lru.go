@@ -14,6 +14,7 @@ type LRU struct {
 	size      int
 	evictList *list.List
 	items     map[interface{}]*list.Element
+	expire    time.Duration
 	onEvict   EvictCallback
 }
 
@@ -32,7 +33,7 @@ func (e *entry) IsExpired() bool {
 }
 
 // NewLRU constructs an LRU of the given size
-func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
+func NewLRU(size int, expire time.Duration, onEvict EvictCallback) (*LRU, error) {
 	if size <= 0 {
 		return nil, errors.New("Must provide a positive size")
 	}
@@ -40,6 +41,7 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 		size:      size,
 		evictList: list.New(),
 		items:     make(map[interface{}]*list.Element),
+		expire:    expire,
 		onEvict:   onEvict,
 	}
 	return c, nil
@@ -58,30 +60,7 @@ func (c *LRU) Purge() {
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
 func (c *LRU) Add(key, value interface{}) bool {
-	// Check for existing item
-	if ent, ok := c.items[key]; ok {
-		c.evictList.MoveToFront(ent)
-		ent.Value.(*entry).value = value
-		return false
-	}
-
-	// Add new item
-	ent := &entry{key: key, value: value}
-	entry := c.evictList.PushFront(ent)
-	c.items[key] = entry
-
-	evict := c.evictList.Len() > c.size
-	// Verify size not exceeded
-	if evict {
-		c.removeOldest()
-	}
-	return evict
-}
-
-// Add adds a value to the cache with expire.  Returns true if an eviction occurred.
-func (c *LRU) AddWithExpire(key, value interface{}, expire time.Duration) bool {
-	ex := time.Now().Add(expire)
-
+	ex := time.Now().Add(c.expire)
 	// Check for existing item
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
@@ -132,7 +111,6 @@ func (c *LRU) Contains(key interface{}) (ok bool) {
 func (c *LRU) Peek(key interface{}) (value interface{}, ok bool) {
 	if ent, ok := c.items[key]; ok {
 		if ent.Value.(*entry).IsExpired() {
-			c.removeElement(ent)
 			return nil, false
 		}
 		return ent.Value.(*entry).value, true

@@ -13,7 +13,7 @@ func TestLRU(t *testing.T) {
 		}
 		evictCounter += 1
 	}
-	l, err := NewLRU(128, onEvicted)
+	l, err := NewLRU(128, 0, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestLRU(t *testing.T) {
 }
 
 func TestLRU_GetOldest_RemoveOldest(t *testing.T) {
-	l, err := NewLRU(128, nil)
+	l, err := NewLRU(128, 0, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestLRU_Add(t *testing.T) {
 		evictCounter += 1
 	}
 
-	l, err := NewLRU(1, onEvicted)
+	l, err := NewLRU(1, 0, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestLRU_Add(t *testing.T) {
 
 // Test that Contains doesn't update recent-ness
 func TestLRU_Contains(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU(2, 0, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestLRU_Contains(t *testing.T) {
 
 // Test that Peek doesn't update recent-ness
 func TestLRU_Peek(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU(2, 0, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -171,47 +171,18 @@ func TestLRU_Peek(t *testing.T) {
 
 // Test that expire feature
 func TestLRU_Expire(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU(2, 2*time.Second, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	l.AddWithExpire(1, 1, 1*time.Second)
-	l.AddWithExpire(2, 2, 2*time.Second)
+	l.Add(1, 1)
 
 	if !l.Contains(1) {
 		t.Errorf("1 should be contained")
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	if l.Contains(1) {
 		t.Errorf("1 should not be contained")
-	}
-	if !l.Contains(2) {
-		t.Errorf("2 should be contained")
-	}
-	time.Sleep(1 * time.Second)
-	if l.Contains(2) {
-		t.Errorf("2 should not be contained")
-	}
-
-	l.AddWithExpire(1, 1, 1*time.Second)
-	l.AddWithExpire(2, 2, 2*time.Second)
-	_, ok := l.Get(1)
-	if !ok {
-		t.Fatalf("1 should not be evicted")
-	}
-	time.Sleep(1 * time.Second)
-	_, ok = l.Get(1)
-	if ok {
-		t.Fatalf("1 should be evicted")
-	}
-	_, ok = l.Get(2)
-	if !ok {
-		t.Fatalf("2 should not be evicted")
-	}
-	time.Sleep(1 * time.Second)
-	_, ok = l.Get(2)
-	if ok {
-		t.Fatalf("2 should be evicted")
 	}
 }
