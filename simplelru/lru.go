@@ -29,11 +29,26 @@ func (e *entry) IsExpired() bool {
 	if e.expire == nil {
 		return false
 	}
-	return e.expire.Before(time.Now())
+	return time.Now().After(*e.expire)
 }
 
 // NewLRU constructs an LRU of the given size
-func NewLRU(size int, expire time.Duration, onEvict EvictCallback) (*LRU, error) {
+func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
+	if size <= 0 {
+		return nil, errors.New("Must provide a positive size")
+	}
+	c := &LRU{
+		size:      size,
+		evictList: list.New(),
+		items:     make(map[interface{}]*list.Element),
+		expire:    0,
+		onEvict:   onEvict,
+	}
+	return c, nil
+}
+
+// NewLRUWithExpire contrusts an LRU of the given size and expire time
+func NewLRUWithExpire(size int, expire time.Duration, onEvict EvictCallback) (*LRU, error) {
 	if size <= 0 {
 		return nil, errors.New("Must provide a positive size")
 	}

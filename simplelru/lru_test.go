@@ -13,7 +13,7 @@ func TestLRU(t *testing.T) {
 		}
 		evictCounter += 1
 	}
-	l, err := NewLRU(128, 0, onEvicted)
+	l, err := NewLRU(128, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestLRU(t *testing.T) {
 }
 
 func TestLRU_GetOldest_RemoveOldest(t *testing.T) {
-	l, err := NewLRU(128, 0, nil)
+	l, err := NewLRU(128, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestLRU_Add(t *testing.T) {
 		evictCounter += 1
 	}
 
-	l, err := NewLRU(1, 0, onEvicted)
+	l, err := NewLRU(1, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestLRU_Add(t *testing.T) {
 
 // Test that Contains doesn't update recent-ness
 func TestLRU_Contains(t *testing.T) {
-	l, err := NewLRU(2, 0, nil)
+	l, err := NewLRU(2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestLRU_Contains(t *testing.T) {
 
 // Test that Peek doesn't update recent-ness
 func TestLRU_Peek(t *testing.T) {
-	l, err := NewLRU(2, 0, nil)
+	l, err := NewLRU(2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestLRU_Peek(t *testing.T) {
 
 // Test that expire feature
 func TestLRU_Expire(t *testing.T) {
-	l, err := NewLRU(2, 2*time.Second, nil)
+	l, err := NewLRUWithExpire(2, 2*time.Second, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
