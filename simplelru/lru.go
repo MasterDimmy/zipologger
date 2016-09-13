@@ -75,17 +75,21 @@ func (c *LRU) Purge() {
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
 func (c *LRU) Add(key, value interface{}) bool {
-	ex := time.Now().Add(c.expire)
+	var ex *time.Time = nil
+	if c.expire != 0 {
+		expire := time.Now().Add(c.expire)
+		ex = &expire
+	}
 	// Check for existing item
 	if ent, ok := c.items[key]; ok {
 		c.evictList.MoveToFront(ent)
 		ent.Value.(*entry).value = value
-		ent.Value.(*entry).expire = &ex
+		ent.Value.(*entry).expire = ex
 		return false
 	}
 
 	// Add new item
-	ent := &entry{key: key, value: value, expire: &ex}
+	ent := &entry{key: key, value: value, expire: ex}
 	entry := c.evictList.PushFront(ent)
 	c.items[key] = entry
 

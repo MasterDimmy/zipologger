@@ -34,6 +34,18 @@ func NewWithEvict(size int, onEvicted func(key interface{}, value interface{})) 
 	return c, nil
 }
 
+// NewWithExpire constructs a fixed size cache with expire feature
+func NewWithExpire(size int, expire time.Duration) (*Cache, error) {
+	lru, err := simplelru.NewLRUWithExpire(size, expire, nil)
+	if err != nil {
+		return nil, err
+	}
+	c := &Cache{
+		lru: lru,
+	}
+	return c, nil
+}
+
 // Purge is used to completely clear the cache
 func (c *Cache) Purge() {
 	c.lock.Lock()
@@ -46,13 +58,6 @@ func (c *Cache) Add(key, value interface{}) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return c.lru.Add(key, value)
-}
-
-// Add adds a value to the cache with expire.  Returns true if an eviction occurred.
-func (c *Cache) AddWithExpire(key, value interface{}, expire time.Duration) bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.lru.AddWithExpire(key, value, expire)
 }
 
 // Get looks up a key's value from the cache.
@@ -89,21 +94,6 @@ func (c *Cache) ContainsOrAdd(key, value interface{}) (ok, evict bool) {
 		return true, false
 	} else {
 		evict := c.lru.Add(key, value)
-		return false, evict
-	}
-}
-
-// ContainsOrAdd checks if a key is in the cache  without updating the
-// recent-ness or deleting it for being stale,  and if not, adds the value with expire.
-// Returns whether found and whether an eviction occurred.
-func (c *Cache) ContainsOrAddWithExpire(key, value interface{}, expire time.Duration) (ok, evict bool) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.lru.Contains(key) {
-		return true, false
-	} else {
-		evict := c.lru.AddWithExpire(key, value, expire)
 		return false, evict
 	}
 }
