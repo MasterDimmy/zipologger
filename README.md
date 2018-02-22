@@ -1,5 +1,6 @@
 golang-lru
 ==========
+[![Build Status](https://travis-ci.org/hnlq715/golang-lru.svg?branch=master)](https://travis-ci.org/hnlq715/golang-lru)
 
 This provides the `lru` package which implements a fixed-size
 thread safe LRU cache with expire feature. It is based on [golang-lru](https://github.com/hashicorp/golang-lru).
