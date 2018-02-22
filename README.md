@@ -15,7 +15,7 @@ Example
 Using the LRU is very simple:
 
 ```go
-l, _ := New(128)
+l, _ := NewARCWithExpire(128, 30*time.Second)
 for i := 0; i < 256; i++ {
     l.Add(i, nil)
 }
