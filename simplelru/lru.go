@@ -75,8 +75,16 @@ func (c *LRU) Purge() {
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
 func (c *LRU) Add(key, value interface{}) bool {
+	return c.AddEx(key, value, 0)
+}
+
+// AddEx adds a value to the cache with expire.  Returns true if an eviction occurred.
+func (c *LRU) AddEx(key, value interface{}, expire time.Duration) bool {
 	var ex *time.Time = nil
-	if c.expire != 0 {
+	if expire > 0 {
+		expire := time.Now().Add(expire)
+		ex = &expire
+	} else if c.expire > 0 {
 		expire := time.Now().Add(c.expire)
 		ex = &expire
 	}

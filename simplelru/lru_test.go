@@ -185,4 +185,14 @@ func TestLRU_Expire(t *testing.T) {
 	if l.Contains(1) {
 		t.Errorf("1 should not be contained")
 	}
+
+	l.AddEx(1, 1, 1*time.Second)
+
+	if !l.Contains(1) {
+		t.Errorf("1 should be contained")
+	}
+	time.Sleep(1 * time.Second)
+	if l.Contains(1) {
+		t.Errorf("1 should not be contained")
+	}
 }

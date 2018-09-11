@@ -119,13 +119,17 @@ func (c *TwoQueueCache) Get(key interface{}) (interface{}, bool) {
 }
 
 func (c *TwoQueueCache) Add(key, value interface{}) {
+	c.AddEx(key, value, 0)
+}
+
+func (c *TwoQueueCache) AddEx(key, value interface{}, expire time.Duration) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	// Check if the value is frequently used already,
 	// and just update the value
 	if c.frequent.Contains(key) {
-		c.frequent.Add(key, value)
+		c.frequent.AddEx(key, value, expire)
 		return
 	}
 
@@ -133,7 +137,7 @@ func (c *TwoQueueCache) Add(key, value interface{}) {
 	// the value into the frequent list
 	if c.recent.Contains(key) {
 		c.recent.Remove(key)
-		c.frequent.Add(key, value)
+		c.frequent.AddEx(key, value, expire)
 		return
 	}
 
@@ -142,13 +146,13 @@ func (c *TwoQueueCache) Add(key, value interface{}) {
 	if c.recentEvict.Contains(key) {
 		c.ensureSpace(true)
 		c.recentEvict.Remove(key)
-		c.frequent.Add(key, value)
+		c.frequent.AddEx(key, value, expire)
 		return
 	}
 
 	// Add to the recently seen list
 	c.ensureSpace(false)
-	c.recent.Add(key, value)
+	c.recent.AddEx(key, value, expire)
 	return
 }
 

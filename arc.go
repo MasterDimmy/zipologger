@@ -89,6 +89,11 @@ func (c *ARCCache) Get(key interface{}) (interface{}, bool) {
 
 // Add adds a value to the cache.
 func (c *ARCCache) Add(key, value interface{}) {
+	c.AddEx(key, value, 0)
+}
+
+// AddEx adds a value to the cache.
+func (c *ARCCache) AddEx(key, value interface{}, expire time.Duration) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -96,13 +101,13 @@ func (c *ARCCache) Add(key, value interface{}) {
 	// promote it to frequent T2
 	if c.t1.Contains(key) {
 		c.t1.Remove(key)
-		c.t2.Add(key, value)
+		c.t2.AddEx(key, value, expire)
 		return
 	}
 
 	// Check if the value is already in T2 (frequent) and update it
 	if c.t2.Contains(key) {
-		c.t2.Add(key, value)
+		c.t2.AddEx(key, value, expire)
 		return
 	}
 
@@ -131,7 +136,7 @@ func (c *ARCCache) Add(key, value interface{}) {
 		c.b1.Remove(key)
 
 		// Add the key to the frequently used list
-		c.t2.Add(key, value)
+		c.t2.AddEx(key, value, expire)
 		return
 	}
 
@@ -160,7 +165,7 @@ func (c *ARCCache) Add(key, value interface{}) {
 		c.b2.Remove(key)
 
 		// Add the key to the frequntly used list
-		c.t2.Add(key, value)
+		c.t2.AddEx(key, value, expire)
 		return
 	}
 
@@ -178,7 +183,7 @@ func (c *ARCCache) Add(key, value interface{}) {
 	}
 
 	// Add to the recently seen list
-	c.t1.Add(key, value)
+	c.t1.AddEx(key, value, expire)
 	return
 }
 

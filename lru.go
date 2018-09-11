@@ -60,6 +60,13 @@ func (c *Cache) Add(key, value interface{}) bool {
 	return c.lru.Add(key, value)
 }
 
+// AddEx adds a value to the cache.  Returns true if an eviction occurred.
+func (c *Cache) AddEx(key, value interface{}, expire time.Duration) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.lru.AddEx(key, value, expire)
+}
+
 // Get looks up a key's value from the cache.
 func (c *Cache) Get(key interface{}) (interface{}, bool) {
 	c.lock.Lock()
