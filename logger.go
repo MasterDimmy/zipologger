@@ -25,19 +25,15 @@ type logger_message struct {
 }
 
 type Logger struct {
-	log        *log.Logger
-	wg         sync.WaitGroup
-	ch         chan *logger_message
-	debug      bool
-	email_func func(string, string)
+	log *log.Logger
+	wg  sync.WaitGroup
+	ch  chan *logger_message
 }
 
 //create logger
-func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, debug bool, email_func func(string, string)) *Logger {
+func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *Logger {
 	log := Logger{
-		log:        newLogger(filename, log_max_size_in_mb, max_backups, max_age_in_days),
-		debug:      debug,
-		email_func: email_func,
+		log: newLogger(filename, log_max_size_in_mb, max_backups, max_age_in_days),
 	}
 	log.init()
 	return &log
@@ -48,7 +44,7 @@ func (l *Logger) Wait() {
 	l.wg.Wait()
 }
 
-//упорядочиваем журнал по времени прибытия
+//order and log to the file
 func (l *Logger) init() {
 	l.ch = make(chan *logger_message, 10)
 	go func() {
@@ -61,55 +57,28 @@ func (l *Logger) init() {
 				if !strings.HasSuffix(str, "\n") {
 					str += "\n"
 				}
-				if l.debug {
-					fmt.Printf(str)
-				}
-				if elem.to_file && l.log != nil {
+				if l.log != nil {
+					panic("cant printf to log file")
 					l.log.Printf(str)
 				}
-				if elem.to_email && l.email_func != nil {
-					l.email_func(elem.email_theme, str)
-				}
+
 			}()
 		}
 	}()
 }
 
-//print group: fmt.printf to stdout
-
-func (l *Logger) print(format string, to_file bool, to_email bool, email_theme string) {
+func (l *Logger) print(format string) {
 	l.wg.Add(1)
 	l.ch <- &logger_message{
-		msg:         format,
-		to_file:     to_file,
-		to_email:    to_email,
-		email_theme: email_theme,
+		msg: format,
 	}
 }
 
-//always print to file, never email
 func (l *Logger) Print(format string) {
-	l.print(format, true, false, "")
+	l.print(format)
 }
 
-//If debug is on - to stdout & to file, never email
-func (l *Logger) Debugp(format string) {
-	if l.debug {
-		l.print(format, true, false, "")
-	}
-}
-
-//Log error to file & email it, if debug - print to screen
-func (l *Logger) Errp(format string) {
-	l.print(format, true, true, "ERROR")
-}
-
-//Print to stdout, if debug, then to file, no email
-func (l *Logger) Adminp(format string) {
-	l.print(format, true, true, "ADMIN")
-}
-
-func (l *Logger) printf(format string, to_file bool, to_email bool, email_theme string, w1 interface{}, w2 ...interface{}) {
+func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) {
 	l.wg.Add(1)
 	var w3 []interface{}
 	w3 = append(w3, w1)
@@ -122,32 +91,12 @@ func (l *Logger) printf(format string, to_file bool, to_email bool, email_theme 
 		format += "\n"
 	}
 	l.ch <- &logger_message{
-		msg:      fmt.Sprintf(format, w3...),
-		to_email: to_email,
-		to_file:  to_file,
+		msg: fmt.Sprintf(format, w3...),
 	}
 }
 
-//Always print to file, never email
 func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) {
-	l.printf(format, true, false, "", w1, w2...)
-}
-
-//If debug is on - to stdout & to file, never email
-func (l *Logger) Debugpf(format string, w1 interface{}, w2 ...interface{}) {
-	if l.debug {
-		l.printf(format, l.debug, false, "", w1, w2...)
-	}
-}
-
-//Log error to file & email it, if debug - print to screen
-func (l *Logger) Errpf(format string, w1 interface{}, w2 ...interface{}) {
-	l.printf(format, true, true, "ERROR", w1, w2...)
-}
-
-//Print to stdout, if debug, then to file, no email
-func (l *Logger) Adminpf(format string, w1 interface{}, w2 ...interface{}) {
-	l.printf(format, true, true, "ADMIN", w1, w2...)
+	l.printf(format, w1, w2...)
 }
 
 var panic_mutex sync.Mutex
@@ -158,7 +107,7 @@ func HandlePanic(err_log *Logger) {
 		panic_mutex.Lock()
 		defer panic_mutex.Unlock()
 		if err_log != nil {
-			err_log.Errpf("PANIC: %s", e)
+			err_log.Printf("PANIC: %s", e)
 		}
 		savePanicToFile(fmt.Sprintf("%s", e))
 		//dumpMem(nil, nil)
