@@ -26,7 +26,7 @@ type logger_message struct {
 
 type Logger struct {
 	log        *log.Logger
-	Wg         sync.WaitGroup
+	wg         sync.WaitGroup
 	ch         chan *logger_message
 	debug      bool
 	email_func func(string, string)
@@ -43,13 +43,18 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 	return &log
 }
 
+//waiting till all will be writed
+func (l *Logger) Wait() {
+	l.wg.Wait()
+}
+
 //упорядочиваем журнал по времени прибытия
 func (l *Logger) init() {
 	l.ch = make(chan *logger_message, 10)
 	go func() {
 		for elem := range l.ch {
 			func() {
-				defer l.Wg.Done()
+				defer l.wg.Done()
 
 				str := elem.msg
 
@@ -73,7 +78,7 @@ func (l *Logger) init() {
 //print group: fmt.printf to stdout
 
 func (l *Logger) print(format string, to_file bool, to_email bool, email_theme string) {
-	l.Wg.Add(1)
+	l.wg.Add(1)
 	l.ch <- &logger_message{
 		msg:         format,
 		to_file:     to_file,
@@ -105,7 +110,7 @@ func (l *Logger) Adminp(format string) {
 }
 
 func (l *Logger) printf(format string, to_file bool, to_email bool, email_theme string, w1 interface{}, w2 ...interface{}) {
-	l.Wg.Add(1)
+	l.wg.Add(1)
 	var w3 []interface{}
 	w3 = append(w3, w1)
 	if len(w2) > 0 {
