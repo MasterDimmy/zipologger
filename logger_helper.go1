@@ -1,9 +1,13 @@
 package main
 
+import (
+	"os"
+
+	"github.com/MasterDimmy/zipologger"
+)
+
 /*
 	Add this file to your project,
-	rename package add import
-	"github.com/MasterDimmy/zipologger"
 */
 
 var admin_log *zipologger.Logger
@@ -16,7 +20,7 @@ const (
 	LOGGER_MAX_AGEINDAYS = 20
 )
 
-var logger_init = func() {
+var logger_init = func() error {
 	err := os.Mkdir("logs", 0777)
 	if err != nil {
 		panic(err)
@@ -24,8 +28,11 @@ var logger_init = func() {
 	admin_log = zipologger.NewLogger("./logs/admin.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
 	debug_log = zipologger.NewLogger("./logs/debug.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
 	error_log = zipologger.NewLogger("./logs/error.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	return nil
 }()
 
+//ADD THIS TO MAIN!!!!
+//defer loggers_wait()
 func loggers_wait() {
 	admin_log.Wait()
 	debug_log.Wait()
