@@ -1,0 +1,61 @@
+package main
+
+/*
+	Add this file to your project,
+	rename package add import
+	"github.com/MasterDimmy/zipologger"
+*/
+
+var admin_log *zipologger.Logger
+var debug_log *zipologger.Logger
+var error_log *zipologger.Logger
+
+const (
+	LOGGER_MAX_FILESIZE  = 5
+	LOGGER_MAX_BACKUPS   = 20
+	LOGGER_MAX_AGEINDAYS = 20
+)
+
+var logger_init = func() {
+	err := os.Mkdir("logs", 0777)
+	if err != nil {
+		panic(err)
+	}
+	admin_log = zipologger.NewLogger("./logs/admin.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	debug_log = zipologger.NewLogger("./logs/debug.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	error_log = zipologger.NewLogger("./logs/error.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+}()
+
+func loggers_wait() {
+	admin_log.Wait()
+	debug_log.Wait()
+	error_log.Wait()
+}
+
+func handlePanic() {
+	zipologger.HandlePanic(error_log)
+}
+
+func errp(format string) {
+	error_log.Print(format)
+}
+
+func errpf(format string, w1 interface{}, w2 ...interface{}) {
+	error_log.Printf(format, w1, w2...)
+}
+
+func adminp(format string) {
+	admin_log.Print(format)
+}
+
+func adminpf(format string, w1 interface{}, w2 ...interface{}) {
+	admin_log.Printf(format, w1, w2...)
+}
+
+func debugp(format string) {
+	debug_log.Print(format)
+}
+
+func debugpf(format string, w1 interface{}, w2 ...interface{}) {
+	debug_log.Printf(format, w1, w2...)
+}
