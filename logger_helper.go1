@@ -49,36 +49,36 @@ func handlePanic() {
 
 func errp(format string) {
 	str := error_log.Print(format)
-	fmt.Printf("%s\n", str)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
 	send_admin_email("ERROR", str)
 }
 
 func errpf(format string, w1 interface{}, w2 ...interface{}) {
 	str := error_log.Printf(format, w1, w2...)
-	fmt.Printf("%s\n", str)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
 	send_admin_email("ERROR", str)
 }
 
 func adminp(format string) {
 	str := admin_log.Print(format)
-	fmt.Printf("%s\n", str)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
 	send_admin_email("ADMIN", str)
 }
 
 func adminpf(format string, w1 interface{}, w2 ...interface{}) {
 	str := admin_log.Printf(format, w1, w2...)
-	fmt.Printf("%s\n", str)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
 	send_admin_email("ADMIN", str)
 }
 
 func debugp(format string) {
 	if config.Debug {
-		fmt.Printf("%s\n", debug_log.Print(format))
+		fmt.Printf("%s\n", strings.Trim(debug_log.Print(format), "\n"))
 	}
 }
 
 func debugpf(format string, w1 interface{}, w2 ...interface{}) {
 	if config.Debug {
-		fmt.Printf("%s\n", debug_log.Printf(format, w1, w2...))
+		fmt.Printf("%s\n", strings.Trim(debug_log.Printf(format, w1, w2...), "\n"))
 	}
 }
