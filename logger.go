@@ -57,7 +57,7 @@ func (l *Logger) init() {
 				if !strings.HasSuffix(str, "\n") {
 					str += "\n"
 				}
-				if l.log == nil {
+				if l.log != nil {
 					l.log.Printf(str)
 				} else {
 					panic("cant printf to log file")
