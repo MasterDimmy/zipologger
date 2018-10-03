@@ -68,18 +68,19 @@ func (l *Logger) init() {
 	}()
 }
 
-func (l *Logger) print(format string) {
+func (l *Logger) print(format string) string {
 	l.wg.Add(1)
 	l.ch <- &logger_message{
 		msg: format,
 	}
+	return format
 }
 
-func (l *Logger) Print(format string) {
-	l.print(format)
+func (l *Logger) Print(format string) string {
+	return l.print(format)
 }
 
-func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) {
+func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
 	l.wg.Add(1)
 	var w3 []interface{}
 	w3 = append(w3, w1)
@@ -91,13 +92,15 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) {
 	if !strings.HasSuffix(format, "\n") {
 		format += "\n"
 	}
+	msg := fmt.Sprintf(format, w3...)
 	l.ch <- &logger_message{
-		msg: fmt.Sprintf(format, w3...),
+		msg: msg,
 	}
+	return msg
 }
 
-func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) {
-	l.printf(format, w1, w2...)
+func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string {
+	return l.printf(format, w1, w2...)
 }
 
 var panic_mutex sync.Mutex

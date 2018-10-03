@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 
 	"github.com/MasterDimmy/zipologger"
 )
@@ -23,7 +24,9 @@ const (
 var logger_init = func() error {
 	err := os.Mkdir("logs", 0777)
 	if err != nil {
-		panic(err)
+		if !strings.Contains(err.Error(), "Cannot create a file when that file already exists") {
+			panic(err)
+		}
 	}
 	admin_log = zipologger.NewLogger("./logs/admin.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
 	debug_log = zipologger.NewLogger("./logs/debug.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
@@ -44,19 +47,19 @@ func handlePanic() {
 }
 
 func errp(format string) {
-	error_log.Print(format)
+	send_admin_email("ERROR", error_log.Print(format))
 }
 
 func errpf(format string, w1 interface{}, w2 ...interface{}) {
-	error_log.Printf(format, w1, w2...)
+	send_admin_email("ERROR", error_log.Printf(format, w1, w2...))
 }
 
 func adminp(format string) {
-	admin_log.Print(format)
+	send_admin_email("ADMIN", admin_log.Print(format))
 }
 
 func adminpf(format string, w1 interface{}, w2 ...interface{}) {
-	admin_log.Printf(format, w1, w2...)
+	send_admin_email("ADMIN", admin_log.Printf(format, w1, w2...))
 }
 
 func debugp(format string) {
