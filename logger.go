@@ -82,6 +82,11 @@ func (l *Logger) print(format string, to_file bool, to_email bool, email_theme s
 	}
 }
 
+//always print to file, never email
+func (l *Logger) Print(format string) {
+	l.print(format, true, false, "")
+}
+
 //If debug is on - to stdout & to file, never email
 func (l *Logger) Debugp(format string) {
 	if l.debug {
@@ -116,6 +121,11 @@ func (l *Logger) printf(format string, to_file bool, to_email bool, email_theme 
 		to_email: to_email,
 		to_file:  to_file,
 	}
+}
+
+//Always print to file, never email
+func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) {
+	l.printf(format, true, false, "", w1, w2...)
 }
 
 //If debug is on - to stdout & to file, never email
