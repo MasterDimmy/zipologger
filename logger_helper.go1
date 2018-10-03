@@ -50,25 +50,25 @@ func handlePanic() {
 func errp(format string) {
 	str := error_log.Print(format)
 	fmt.Printf("%s\n", strings.Trim(str, "\n"))
-	send_admin_email("ERROR", str)
+	adminMail("ERROR", str)
 }
 
 func errpf(format string, w1 interface{}, w2 ...interface{}) {
 	str := error_log.Printf(format, w1, w2...)
 	fmt.Printf("%s\n", strings.Trim(str, "\n"))
-	send_admin_email("ERROR", str)
+	adminMail("ERROR", str)
 }
 
 func adminp(format string) {
 	str := admin_log.Print(format)
 	fmt.Printf("%s\n", strings.Trim(str, "\n"))
-	send_admin_email("ADMIN", str)
+	adminMail("ADMIN", str)
 }
 
 func adminpf(format string, w1 interface{}, w2 ...interface{}) {
 	str := admin_log.Printf(format, w1, w2...)
 	fmt.Printf("%s\n", strings.Trim(str, "\n"))
-	send_admin_email("ADMIN", str)
+	adminMail("ADMIN", str)
 }
 
 func debugp(format string) {
