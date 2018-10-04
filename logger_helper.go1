@@ -82,3 +82,11 @@ func debugpf(format string, w1 interface{}, w2 ...interface{}) {
 		fmt.Printf("%s\n", strings.Trim(debug_log.Printf(format, w1, w2...), "\n"))
 	}
 }
+
+func adebugp(format string) {
+	fmt.Printf("%s\n", strings.Trim(debug_log.Print(format), "\n"))
+}
+
+func adebugpf(format string, w1 interface{}, w2 ...interface{}) {
+	fmt.Printf("%s\n", strings.Trim(debug_log.Printf(format, w1, w2...), "\n"))
+}
