@@ -44,7 +44,10 @@ func loggers_wait() {
 }
 
 func handlePanic() {
-	zipologger.HandlePanic(error_log)
+	if e := recover(); e != nil {
+		str := zipologger.HandlePanic(error_log, e)
+		adminMail("PANIC", str)
+	}
 }
 
 func errp(format string) {

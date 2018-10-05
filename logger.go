@@ -106,17 +106,17 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 var panic_mutex sync.Mutex
 
 //intercept panics and save it to file
-func HandlePanic(err_log *Logger) {
-	if e := recover(); e != nil {
-		panic_mutex.Lock()
-		defer panic_mutex.Unlock()
-		if err_log != nil {
-			err_log.Printf("PANIC: %s", e)
-		}
-		savePanicToFile(fmt.Sprintf("%s", e))
-		//dumpMem(nil, nil)
-		panic(e)
+func HandlePanic(err_log *Logger, e interface{}) string {
+	panic_mutex.Lock()
+	defer panic_mutex.Unlock()
+	if err_log != nil {
+		err_log.Printf("PANIC: %s\n", e)
 	}
+	str := savePanicToFile(fmt.Sprintf("%s", e))
+	//dumpMem(nil, nil)
+	fmt.Printf("PANIC: %s\n", str)
+	//panic(e)
+	return str
 }
 
 // Current stack dump
@@ -126,7 +126,7 @@ func Stack() string {
 	return string(b[:written])
 }
 
-func savePanicToFile(pdesc string) {
+func savePanicToFile(pdesc string) string {
 	dts := time.Now().Format("2006-01-02(15.04.05.000)")
 	st, _ := filepath.Abs(os.Args[0])
 	os.Mkdir("logs", 0777)
@@ -135,9 +135,11 @@ func savePanicToFile(pdesc string) {
 	if e == nil {
 		defer f.Close()
 		_, file, line, _ := runtime.Caller(1)
-		f.WriteString(fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n")
-		f.WriteString(Stack())
+		str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
+		f.WriteString(str)
+		return str
 	}
+	return ""
 }
 
 func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *log.Logger {
