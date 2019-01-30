@@ -109,13 +109,11 @@ var panic_mutex sync.Mutex
 func HandlePanic(err_log *Logger, e interface{}) string {
 	panic_mutex.Lock()
 	defer panic_mutex.Unlock()
+	str := savePanicToFile(fmt.Sprintf("%s", e))
+	fmt.Printf("PANIC: %s\n", str)
 	if err_log != nil {
 		err_log.Printf("PANIC: %s\n", e)
 	}
-	str := savePanicToFile(fmt.Sprintf("%s", e))
-	//dumpMem(nil, nil)
-	fmt.Printf("PANIC: %s\n", str)
-	//panic(e)
 	return str
 }
 
