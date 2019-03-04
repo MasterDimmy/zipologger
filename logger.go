@@ -30,13 +30,22 @@ type Logger struct {
 	ch  chan *logger_message
 }
 
+var inited_loggers []*Logger
+
 //create logger
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *Logger {
 	log := Logger{
 		log: newLogger(filename, log_max_size_in_mb, max_backups, max_age_in_days),
 	}
 	log.init()
+	inited_loggers = append(inited_loggers, &log)
 	return &log
+}
+
+func Wait() {
+	for _, v := range inited_loggers {
+		v.Wait()
+	}
 }
 
 //waiting till all will be writed
