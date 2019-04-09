@@ -34,6 +34,8 @@ var inited_loggers []*Logger
 
 //create logger
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *Logger {
+	p := filepath.Dir(filename)
+	os.MkdirAll(p, 0666)
 	log := Logger{
 		log: newLogger(filename, log_max_size_in_mb, max_backups, max_age_in_days),
 	}
