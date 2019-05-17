@@ -50,8 +50,11 @@ func Wait() {
 	}
 }
 
+var wait_wg sync.Mutex
 //waiting till all will be writed
 func (l *Logger) Wait() {
+	wait_wg.Lock()
+	defer wait_wg.Unlock()
 	l.wg.Wait()
 }
 
