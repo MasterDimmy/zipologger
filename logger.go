@@ -46,13 +46,13 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 
 func Wait() {
 	for _, v := range inited_loggers {
-		v.Wait()
+		v.wait()
 	}
 }
 
 var wait_wg sync.Mutex
 //waiting till all will be writed
-func (l *Logger) Wait() {
+func (l *Logger) wait() {
 	wait_wg.Lock()
 	defer wait_wg.Unlock()
 	l.wg.Wait()
