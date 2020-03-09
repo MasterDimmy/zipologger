@@ -60,6 +60,11 @@ func (l *Logger) wait() {
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
 	atomic.StoreInt32(&l.stop, 1) //stop accept new
+	l.wg.Add(1)
+	go func() { //т.к. add(1) может быть после wait() то будет rase, потому форсируем его "до"
+		<-time.Tick(time.Second)
+		l.wg.Done()
+	}()
 	l.wg.Wait()
 }
 
