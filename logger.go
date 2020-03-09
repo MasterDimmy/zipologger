@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/zilorot"
@@ -26,8 +27,12 @@ type logger_message struct {
 
 type Logger struct {
 	log *log.Logger
-	wg  sync.WaitGroup
-	ch  chan *logger_message
+
+	wg             sync.WaitGroup
+	stop           int32
+	stopwait_mutex sync.Mutex
+
+	ch chan *logger_message
 }
 
 var inited_loggers []*Logger
@@ -50,11 +55,11 @@ func Wait() {
 	}
 }
 
-var wait_wg sync.Mutex
 //waiting till all will be writed
 func (l *Logger) wait() {
-	wait_wg.Lock()
-	defer wait_wg.Unlock()
+	l.stopwait_mutex.Lock()
+	defer l.stopwait_mutex.Unlock()
+	atomic.StoreInt32(&l.stop, 1) //stop accept new
 	l.wg.Wait()
 }
 
@@ -83,6 +88,10 @@ func (l *Logger) init() {
 }
 
 func (l *Logger) print(format string) string {
+	if atomic.LoadInt32(&l.stop) == 1 { //stop accept new?
+		return format
+	}
+
 	l.wg.Add(1)
 	l.ch <- &logger_message{
 		msg: format,
@@ -95,6 +104,10 @@ func (l *Logger) Print(format string) string {
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
+	if atomic.LoadInt32(&l.stop) == 1 { //stop accept new?
+		return format
+	}
+
 	l.wg.Add(1)
 	var w3 []interface{}
 	w3 = append(w3, w1)
