@@ -105,7 +105,7 @@ func (l *Logger) Print(format string) string {
 	return l.print(format)
 }
 
-func (l *Logger) Log(w ...interface{}) {
+func (l Logger) Log(w ...interface{}) {
 	switch {
 	case len(w) == 0:
 		panic("no parameters in Log")
@@ -145,7 +145,7 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 	return l.printf(format, w1, w2...)
 }
 
-func (l *Logger) Logf(format string, w2 ...interface{}) {
+func (l Logger) Logf(format string, w2 ...interface{}) {
 	if len(w2) == 0 {
 		panic("no parameters in Logf")
 	}
