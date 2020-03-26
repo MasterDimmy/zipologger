@@ -91,6 +91,17 @@ func (l *Logger) Print(format string) string {
 	return l.print(format)
 }
 
+func (l *Logger) Log(w ...interface{}) {
+	switch {
+	case len(w) == 0:
+		panic("no parameters in Log")
+	case len(w) == 1:
+		l.print(w[0].(string))
+	default:
+		l.printf(w[0].(string), w[1], w...)
+	}
+}
+
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
 	l.wg.Add(1)
 	var w3 []interface{}
@@ -112,6 +123,13 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 
 func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string {
 	return l.printf(format, w1, w2...)
+}
+
+func (l *Logger) Logf(format string, w2 ...interface{}) {
+	if len(w2) == 0 {
+		panic("no parameters in Logf")
+	}
+	l.printf(format, w2[0], w2...)
 }
 
 var panic_mutex sync.Mutex
