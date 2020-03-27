@@ -86,6 +86,28 @@ func (l *Logger) init() {
 	}()
 }
 
+func formatCaller() string {
+	ret := ""
+	for i := 5; i >= 3; i-- {
+		_, file, line, ok := runtime.Caller(i) //0 call
+		if !ok {
+			file = "???"
+			line = 0
+		} else {
+			t := strings.LastIndex(file, "/")
+			if t > 0 {
+				file = file[t+1:]
+			}
+		}
+		if len(ret) > 0 {
+			ret = ret + "=> "
+		}
+		ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
+	}
+	ret = ret + ": "
+	return ret
+}
+
 func (l *Logger) print(format string) string {
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
@@ -93,22 +115,15 @@ func (l *Logger) print(format string) string {
 		return format
 	}
 
-	var ok bool
-	_, file, line, ok := runtime.Caller(2)
-	if !ok {
-		file = "???"
-		line = 0
-	}
-
 	l.wg.Add(1)
 	l.ch <- &logger_message{
-		msg: fmt.Sprintf("%s:%d: ", file, line) + format,
+		msg: formatCaller() + format, //1 call
 	}
 	return format
 }
 
 func (l *Logger) Print(format string) string {
-	return l.print(format)
+	return l.print(format) //2 call
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
@@ -131,15 +146,8 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	}
 	msg := fmt.Sprintf(format, w3...)
 
-	var ok bool
-	_, file, line, ok := runtime.Caller(2)
-	if !ok {
-		file = "???"
-		line = 0
-	}
-
 	l.ch <- &logger_message{
-		msg: fmt.Sprintf("%s:%d: ", file, line) + msg,
+		msg: formatCaller() + msg,
 	}
 	return msg
 }
