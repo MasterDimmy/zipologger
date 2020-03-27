@@ -86,9 +86,15 @@ func (l *Logger) init() {
 	}()
 }
 
+var defaultCallerStartDepth = 5
+
+func SetDefaultCallerDepth(a int) {
+	defaultCallerStartDepth = a
+}
+
 func formatCaller() string {
 	ret := ""
-	for i := 5; i >= 3; i-- {
+	for i := defaultCallerStartDepth; i >= defaultCallerStartDepth-2; i-- {
 		_, file, line, ok := runtime.Caller(i) //0 call
 		if !ok {
 			file = "???"
