@@ -100,6 +100,7 @@ func SetDefaultCallerDepth(a int) {
 
 func formatCaller() string {
 	ret := ""
+	previous := ""
 	for i := defaultCallerStartDepth; i >= defaultCallerStartDepth-2; i-- {
 		_, file, line, ok := runtime.Caller(i) //0 call
 		if !ok {
@@ -115,7 +116,12 @@ func formatCaller() string {
 					ret = ret + "=> "
 				}
 				if !strings.HasSuffix(file, ".s") && file != "???" {
-					ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
+					if previous == file {
+						ret = ret + fmt.Sprintf(":%d ", line)
+					} else {
+						ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
+					}
+					previous = file
 				}
 			}
 		}
