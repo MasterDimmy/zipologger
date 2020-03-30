@@ -37,6 +37,12 @@ type Logger struct {
 
 var inited_loggers []*Logger
 
+var alsoToStdout bool
+
+func SetAlsoToStdOut(b bool) {
+	alsoToStdout = b
+}
+
 //create logger
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *Logger {
 	p := filepath.Dir(filename)
@@ -125,6 +131,11 @@ func (l *Logger) print(format string) string {
 	l.ch <- &logger_message{
 		msg: formatCaller() + format, //1 call
 	}
+
+	if alsoToStdout {
+		fmt.Println(formatCaller() + format)
+	}
+
 	return format
 }
 
@@ -155,6 +166,11 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	l.ch <- &logger_message{
 		msg: formatCaller() + msg,
 	}
+
+	if alsoToStdout {
+		fmt.Println(formatCaller() + msg)
+	}
+
 	return msg
 }
 
