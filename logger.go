@@ -119,7 +119,7 @@ func formatCaller() string {
 					if previous == file {
 						ret = ret + fmt.Sprintf(":%d ", line)
 					} else {
-						ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
+						ret = ret + fmt.Sprintf("%s", fmt.Sprintf("%s:%d", file, line))
 					}
 					previous = file
 				}
