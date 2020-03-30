@@ -106,15 +106,19 @@ func formatCaller() string {
 			file = "???"
 			line = 0
 		} else {
-			t := strings.LastIndex(file, "/")
-			if t > 0 {
-				file = file[t+1:]
+			if !strings.HasSuffix(file, "src/testing/testing.go") {
+				t := strings.LastIndex(file, "/")
+				if t > 0 {
+					file = file[t+1:]
+				}
+				if len(ret) > 0 {
+					ret = ret + "=> "
+				}
+				if !strings.HasSuffix(file, ".s") && file != "???" {
+					ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
+				}
 			}
 		}
-		if len(ret) > 0 {
-			ret = ret + "=> "
-		}
-		ret = ret + fmt.Sprintf("%-20s", fmt.Sprintf("%s:%d", file, line))
 	}
 	ret = ret + ": "
 	return ret
