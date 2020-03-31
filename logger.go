@@ -39,7 +39,7 @@ var inited_loggers []*Logger
 
 var alsoToStdout bool
 
-func SetAlsoToStdOut(b bool) {
+func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
