@@ -92,16 +92,10 @@ func (l *Logger) init() {
 	}()
 }
 
-var defaultCallerStartDepth = 5
-
-func SetDefaultCallerDepth(a int) {
-	defaultCallerStartDepth = a
-}
-
 func formatCaller() string {
 	ret := ""
 	previous := ""
-	for i := defaultCallerStartDepth; i >= defaultCallerStartDepth-2; i-- {
+	for i := 6; i >= 3; i-- {
 		_, file, line, ok := runtime.Caller(i) //0 call
 		if !ok {
 			file = "???"
@@ -113,11 +107,11 @@ func formatCaller() string {
 					file = file[t+1:]
 				}
 				if len(ret) > 0 {
-					ret = ret + "=> "
+					ret = ret + "=>"
 				}
 				if !strings.HasSuffix(file, ".s") && file != "???" {
 					if previous == file {
-						ret = ret + fmt.Sprintf(":%d ", line)
+						ret = ret + fmt.Sprintf(":%d", line)
 					} else {
 						ret = ret + fmt.Sprintf("%s", fmt.Sprintf("%s:%d", file, line))
 					}
