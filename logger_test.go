@@ -17,9 +17,9 @@ func subFunc2() {
 func Test_callerDepth(t *testing.T) {
 	defer Wait()
 
-	SetAlsoToStdOut(true)
+	SetAlsoToStdout(true)
 
-	logger = NewLogger("test", 1, 1, 1)
+	logger = NewLogger("test", 1, 1, 1, true)
 	logger.Print("test from main")
 
 	go func() {

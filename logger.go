@@ -28,6 +28,13 @@ type logger_message struct {
 type Logger struct {
 	log *log.Logger
 
+	//файл будет создан при первой записи, чтобы не делать пустышки
+	filename           string
+	log_max_size_in_mb int
+	max_backups        int
+	max_age_in_days    int
+	write_fileline     bool
+
 	wg             sync.WaitGroup
 	stop           int32
 	stopwait_mutex sync.Mutex
@@ -44,11 +51,15 @@ func SetAlsoToStdout(b bool) {
 }
 
 //create logger
-func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *Logger {
+func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
 	p := filepath.Dir(filename)
 	os.MkdirAll(p, 0666)
 	log := Logger{
-		log: newLogger(filename, log_max_size_in_mb, max_backups, max_age_in_days),
+		filename:           filename,
+		log_max_size_in_mb: log_max_size_in_mb,
+		max_backups:        max_backups,
+		max_age_in_days:    max_age_in_days,
+		write_fileline:     write_fileline,
 	}
 	log.init()
 	inited_loggers = append(inited_loggers, &log)
@@ -84,6 +95,10 @@ func (l *Logger) init() {
 				if !strings.HasSuffix(str, "\n") {
 					str += "\n"
 				}
+				if l.log == nil {
+					l.log = newLogger(l.filename, l.log_max_size_in_mb, l.max_backups, l.max_age_in_days)
+				}
+
 				if l.log != nil {
 					l.log.Printf(str)
 				} else {
@@ -168,13 +183,18 @@ func (l *Logger) print(format string) string {
 		return format
 	}
 
+	msg := format
+	if l.write_fileline {
+		msg = formatCaller(GetStartCallerDepth()) + msg
+	}
+
 	l.wg.Add(1)
 	l.ch <- &logger_message{
-		msg: formatCaller(GetStartCallerDepth()) + format, //1 call
+		msg: msg, //1 call
 	}
 
 	if alsoToStdout {
-		fmt.Println(formatCaller(GetStartCallerDepth()) + format)
+		fmt.Println(msg)
 	}
 
 	return format
@@ -204,12 +224,16 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	}
 	msg := fmt.Sprintf(format, w3...)
 
+	if l.write_fileline {
+		msg = formatCaller(GetStartCallerDepth()) + msg
+	}
+
 	l.ch <- &logger_message{
-		msg: formatCaller(GetStartCallerDepth()) + msg,
+		msg: msg,
 	}
 
 	if alsoToStdout {
-		fmt.Println(formatCaller(GetStartCallerDepth()) + msg)
+		fmt.Println(msg)
 	}
 
 	return msg
