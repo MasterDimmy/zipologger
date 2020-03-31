@@ -92,25 +92,38 @@ func (l *Logger) init() {
 	}()
 }
 
-var additional_caller_depth int
+var start_caller_depth int
+var max_caller_depth = 7
 var additional_caller_depth_m sync.Mutex
 
-func SetDefaultCallerDepth(a int) {
+func SetStartCallerDepth(a int) {
 	additional_caller_depth_m.Lock()
 	defer additional_caller_depth_m.Unlock()
-	additional_caller_depth = a
+	start_caller_depth = a
 }
 
-func GetDefaultCallerDepth() int {
+func GetStartCallerDepth() int {
 	additional_caller_depth_m.Lock()
 	defer additional_caller_depth_m.Unlock()
-	return additional_caller_depth
+	return start_caller_depth
+}
+
+func SetMaxCallerDepth(a int) {
+	additional_caller_depth_m.Lock()
+	defer additional_caller_depth_m.Unlock()
+	max_caller_depth = a
+}
+
+func GetMaxCallerDepth() int {
+	additional_caller_depth_m.Lock()
+	defer additional_caller_depth_m.Unlock()
+	return max_caller_depth
 }
 
 func formatCaller(add int) string {
 	ret := ""
 	previous := ""
-	for i := 6 + add; i >= 2+add; i-- {
+	for i := GetMaxCallerDepth() + add; i >= 2+add; i-- {
 		_, file, line, ok := runtime.Caller(i) //0 call
 		if !ok {
 			file = "???"
@@ -155,11 +168,11 @@ func (l *Logger) print(format string) string {
 
 	l.wg.Add(1)
 	l.ch <- &logger_message{
-		msg: formatCaller(GetDefaultCallerDepth()) + format, //1 call
+		msg: formatCaller(GetStartCallerDepth()) + format, //1 call
 	}
 
 	if alsoToStdout {
-		fmt.Println(formatCaller(GetDefaultCallerDepth()) + format)
+		fmt.Println(formatCaller(GetStartCallerDepth()) + format)
 	}
 
 	return format
@@ -190,11 +203,11 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	msg := fmt.Sprintf(format, w3...)
 
 	l.ch <- &logger_message{
-		msg: formatCaller(GetDefaultCallerDepth()) + msg,
+		msg: formatCaller(GetStartCallerDepth()) + msg,
 	}
 
 	if alsoToStdout {
-		fmt.Println(formatCaller(GetDefaultCallerDepth()) + msg)
+		fmt.Println(formatCaller(GetStartCallerDepth()) + msg)
 	}
 
 	return msg
