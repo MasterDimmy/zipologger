@@ -55,6 +55,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 	return &log
 }
 
+//делает flush
 func Wait() {
 	for _, v := range inited_loggers {
 		v.wait()
@@ -67,6 +68,7 @@ func (l *Logger) wait() {
 	defer l.stopwait_mutex.Unlock()
 	atomic.StoreInt32(&l.stop, 1) //stop accept new
 	l.wg.Wait()
+	atomic.StoreInt32(&l.stop, 0) //we can accept new
 }
 
 //order and log to the file
