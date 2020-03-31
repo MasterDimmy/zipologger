@@ -123,21 +123,21 @@ func GetMaxCallerDepth() int {
 func formatCaller(add int) string {
 	ret := ""
 	previous := ""
-	for i := GetMaxCallerDepth() + add; i >= 2+add; i-- {
+	for i := GetMaxCallerDepth() + add; i >= 3+add; i-- {
 		_, file, line, ok := runtime.Caller(i) //0 call
 		if !ok {
 			file = "???"
 			line = 0
 		} else {
 			if !strings.HasSuffix(file, "src/testing/testing.go") {
-				t := strings.LastIndex(file, "/")
-				if t > 0 {
-					file = file[t+1:]
-				}
-				if len(ret) > 0 {
-					ret = ret + "=>"
-				}
-				if !strings.HasSuffix(file, ".s") && file != "???" {
+				if !strings.HasSuffix(file, "runtime/asm_amd64.s") && !strings.HasSuffix(file, "runtime/proc.go") {
+					t := strings.LastIndex(file, "/")
+					if t > 0 {
+						file = file[t+1:]
+					}
+					if len(ret) > 0 {
+						ret = ret + "=>"
+					}
 					if previous == file {
 						ret = ret + fmt.Sprintf(":%d", line)
 					} else {
