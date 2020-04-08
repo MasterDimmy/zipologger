@@ -84,7 +84,7 @@ func (l *Logger) wait() {
 
 //order and log to the file
 func (l *Logger) init() {
-	l.ch = make(chan *logger_message, 10)
+	l.ch = make(chan *logger_message, 100)
 	go func() {
 		for elem := range l.ch {
 			func() {
