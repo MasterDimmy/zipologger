@@ -301,3 +301,28 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 
 	return logg
 }
+
+func handlePanic() {
+	if e := recover(); e != nil {
+		fmt.Printf("PANIC: %s\n", e)
+		savePanicToFile(fmt.Sprintf("%v", e))
+	}
+}
+
+//автоматически создает и возвращает логгер на файл с заданным суффиксом
+var get_logger_by_suffix_mutex sync.Mutex
+var loggers_by_suffix = make(map[string]*Logger)
+
+func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
+	defer handlePanic()
+	get_logger_by_suffix_mutex.Lock()
+	defer get_logger_by_suffix_mutex.Unlock()
+
+	log, ok := loggers_by_suffix[suffix]
+	if ok {
+		return log
+	}
+	new_log := NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
+	loggers_by_suffix[suffix] = new_log
+	return new_log
+}
