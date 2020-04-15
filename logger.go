@@ -246,7 +246,7 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 var panic_mutex sync.Mutex
 
 //intercept panics and save it to file
-func HandlePanic(err_log *Logger, e interface{}) string {
+func HandlePanicLog(err_log *Logger, e interface{}) string {
 	panic_mutex.Lock()
 	defer panic_mutex.Unlock()
 	str := savePanicToFile(fmt.Sprintf("%s", e))
@@ -302,7 +302,7 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 	return logg
 }
 
-func handlePanic() {
+func HandlePanic() {
 	if e := recover(); e != nil {
 		fmt.Printf("PANIC: %s\n", e)
 		savePanicToFile(fmt.Sprintf("%v", e))
@@ -314,7 +314,7 @@ var get_logger_by_suffix_mutex sync.Mutex
 var loggers_by_suffix = make(map[string]*Logger)
 
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
-	defer handlePanic()
+	defer HandlePanic()
 	get_logger_by_suffix_mutex.Lock()
 	defer get_logger_by_suffix_mutex.Unlock()
 
