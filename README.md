@@ -1,5 +1,7 @@
 golang-lru
 ==========
+TODO: 
+
 [![Build Status](https://travis-ci.org/hnlq715/golang-lru.svg?branch=master)](https://travis-ci.org/hnlq715/golang-lru)
 [![Coverage](https://codecov.io/gh/hnlq715/golang-lru/branch/master/graph/badge.svg)](https://codecov.io/gh/hnlq715/golang-lru)
 
