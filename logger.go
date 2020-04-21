@@ -83,29 +83,31 @@ func (l *Logger) wait() {
 
 //order and log to the file
 func (l *Logger) init() {
-	l.ch = make(chan *logger_message, 100)
-	go func() {
-		for elem := range l.ch {
-			func() {
-				defer l.wg.Done()
+	l.ch = make(chan *logger_message, 1000)
+	for i := 1; i < 2; i++ { //в 2 треда на журнал
+		go func() {
+			for elem := range l.ch {
+				func() {
+					defer l.wg.Done()
 
-				str := elem.msg
+					str := elem.msg
 
-				if !strings.HasSuffix(str, "\n") {
-					str += "\n"
-				}
-				if l.log == nil {
-					l.log = newLogger(l.filename, l.log_max_size_in_mb, l.max_backups, l.max_age_in_days)
-				}
+					if !strings.HasSuffix(str, "\n") {
+						str += "\n"
+					}
+					if l.log == nil {
+						l.log = newLogger(l.filename, l.log_max_size_in_mb, l.max_backups, l.max_age_in_days)
+					}
 
-				if l.log != nil {
-					l.log.Printf(str)
-				} else {
-					panic("cant printf to log file")
-				}
-			}()
-		}
-	}()
+					if l.log != nil {
+						l.log.Printf(str)
+					} else {
+						panic("cant printf to log file")
+					}
+				}()
+			}
+		}()
+	}
 }
 
 var start_caller_depth int
