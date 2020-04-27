@@ -100,7 +100,7 @@ func (l *Logger) init() {
 					}
 
 					if l.log != nil {
-						l.log.Printf(str)
+						l.log.Println(str)
 					} else {
 						panic("cant printf to log file")
 					}
