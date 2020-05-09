@@ -13,8 +13,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/MasterDimmy/zilorot"
+	"github.com/hashicorp/golang-lru"
 )
 
 type logger_message struct {
@@ -39,6 +41,8 @@ type Logger struct {
 	stopwait_mutex sync.Mutex
 
 	ch chan *logger_message
+
+	limited_print *lru.Cache //printid - unixitime
 }
 
 var inited_loggers []*Logger
@@ -53,12 +57,14 @@ func SetAlsoToStdout(b bool) {
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
 	p := filepath.Dir(filename)
 	os.MkdirAll(p, 0666)
+	l, _ := lru.New(1000)
 	log := Logger{
 		filename:           filename,
 		log_max_size_in_mb: log_max_size_in_mb,
 		max_backups:        max_backups,
 		max_age_in_days:    max_age_in_days,
 		write_fileline:     write_fileline,
+		limited_print:      l,
 	}
 	log.init()
 	inited_loggers = append(inited_loggers, &log)
@@ -238,6 +244,19 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	}
 
 	return msg
+}
+
+//выводит на печать первый вызов, затем не чаще, чем duration для данной строки printid
+func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format string, w1 interface{}, w2 ...interface{}) {
+	old, ok := l.limited_print.Get(printid)
+	if ok {
+		old_v := old.(time.Time)
+		if time.Since(old_v) < duration {
+			return
+		}
+	}
+	l.limited_print.Add(printid, time.Now())
+	l.printf(format, w1, w2...)
 }
 
 func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string {
