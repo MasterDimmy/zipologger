@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MasterDimmy/errorcatcher"
 	"github.com/MasterDimmy/zilorot"
 	"github.com/hashicorp/golang-lru"
 )
@@ -314,10 +315,16 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 	return logg
 }
 
+var ErrorCatcher *errorcatcher.System
+
 func HandlePanic() {
 	if e := recover(); e != nil {
-		fmt.Printf("PANIC: %s\n", e)
-		savePanicToFile(fmt.Sprintf("%v", e))
+		p := fmt.Sprintf("%v", e)
+		fmt.Printf(p)
+		if ErrorCatcher != nil {
+			ErrorCatcher.Send(p)
+		}
+		savePanicToFile(p)
 	}
 }
 
