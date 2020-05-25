@@ -282,7 +282,7 @@ func Stack() string {
 func savePanicToFile(pdesc string) string {
 	st, _ := filepath.Abs(os.Args[0])
 	os.Mkdir("logs", 0777)
-	fn := filepath.Join(filepath.Dir(st), "logs/panic_"+filepath.Base(os.Args[0])+".log")
+	fn := filepath.Join(filepath.Dir(st), "logs/panic_"+filepath.Base(os.Args[0])+time.Now().Format("_2006-Jan-02_15")+".log")
 	f, e := os.Create(fn)
 	if e == nil {
 		defer f.Close()
