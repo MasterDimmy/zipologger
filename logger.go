@@ -71,7 +71,10 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 }
 
 //делает flush
+var w_mutex sync.Mutex
 func Wait() {
+	w_mutex.Lock()
+	defer w_mutex.Unlock()
 	for _, v := range inited_loggers {
 		v.wait()
 	}
