@@ -72,6 +72,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 
 //делает flush
 var w_mutex sync.Mutex
+
 func Wait() {
 	w_mutex.Lock()
 	defer w_mutex.Unlock()
@@ -259,6 +260,12 @@ func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format st
 
 func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string {
 	return l.printf(format, w1, w2...)
+}
+
+func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {
+	ret := l.printf(format, w1, w2...)
+	l.Flush()
+	panic(ret)
 }
 
 var panic_mutex sync.Mutex
