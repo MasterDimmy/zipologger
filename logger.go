@@ -44,7 +44,7 @@ type Logger struct {
 	limited_print *lru.Cache //printid - unixitime
 }
 
-var inited_loggers []*Logger
+var inited_loggers sync.Map
 
 var alsoToStdout bool
 
@@ -53,7 +53,16 @@ func SetAlsoToStdout(b bool) {
 }
 
 //create logger
+var NewLogger_mutex sync.Mutex
+
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
+	NewLogger_mutex.Lock()
+	logger, ok := inited_loggers.Load(filename)
+	if ok {
+		return logger.(*Logger)
+	}
+	NewLogger_mutex.Unlock()
+
 	p := filepath.Dir(filename)
 	os.MkdirAll(p, 0666)
 	l, _ := lru.New(1000)
@@ -66,7 +75,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 		limited_print:      l,
 	}
 	log.init()
-	inited_loggers = append(inited_loggers, &log)
+	inited_loggers.Store(filename, &log)
 	return &log
 }
 
@@ -76,9 +85,11 @@ var w_mutex sync.Mutex
 func Wait() {
 	w_mutex.Lock()
 	defer w_mutex.Unlock()
-	for _, v := range inited_loggers {
-		v.wait()
-	}
+	inited_loggers.Range(func(key interface{}, value interface{}) bool {
+		logger := value.(*Logger)
+		logger.wait()
+		return true
+	})
 }
 
 func (l *Logger) Flush() {
