@@ -344,6 +344,8 @@ func HandlePanic() {
 		fmt.Printf(p)
 		if ErrorCatcher != nil {
 			ErrorCatcher.Send(p)
+			time.Sleep(100 * time.Millisecond)
+			ErrorCatcher.Wait()
 		}
 		savePanicToFile(p)
 	}
