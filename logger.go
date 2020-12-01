@@ -59,6 +59,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 	NewLogger_mutex.Lock()
 	logger, ok := inited_loggers.Load(filename)
 	if ok {
+		NewLogger_mutex.Unlock()
 		return logger.(*Logger)
 	}
 	NewLogger_mutex.Unlock()
