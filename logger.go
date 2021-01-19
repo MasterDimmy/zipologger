@@ -218,7 +218,7 @@ func (l *Logger) print(format string) string {
 		fmt.Println(msg)
 	}
 
-	return format
+	return msg
 }
 
 func (l *Logger) Print(format string) string {
