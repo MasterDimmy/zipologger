@@ -342,12 +342,12 @@ func HandlePanic() {
 	if e := recover(); e != nil {
 		p := fmt.Sprintf("%v", e)
 		fmt.Printf(p)
+		savePanicToFile(p)
 		if ErrorCatcher != nil {
 			ErrorCatcher.Send(p)
 			time.Sleep(100 * time.Millisecond)
 			ErrorCatcher.Wait()
 		}
-		savePanicToFile(p)
 	}
 }
 
