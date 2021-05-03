@@ -222,7 +222,7 @@ func (l *Logger) print(format string) string {
 }
 
 func (l *Logger) Print(format string) string {
-	return l.print(format) //2 call
+	return l.print(format) //2 cal l
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
