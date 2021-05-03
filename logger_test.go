@@ -35,3 +35,20 @@ func Test_callerDepth(t *testing.T) {
 
 	subFunc2()
 }
+
+func Test_println(t *testing.T) {
+	defer Wait()
+
+	SetAlsoToStdout(true)
+
+	logger = NewLogger("test", 1, 1, 1, true)
+
+	logger.Println("1")
+
+	logger.Println("1", "2")
+
+	d := 4
+	logger.Println("1", 3)
+
+	logger.Println(3, "2", d)
+}

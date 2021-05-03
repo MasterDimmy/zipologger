@@ -274,6 +274,26 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 	return l.printf(format, w1, w2...)
 }
 
+func (l *Logger) Println(w ...interface{}) string {
+	switch len(w) {
+	case 0:
+		return ""
+	case 1:
+		return l.printf("%v\n", w[0])
+	case 2:
+		return l.printf("%v %v\n", w[0], w[1])
+	default:
+		tail := ""
+		for _ = range w {
+			tail += "%v "
+		}
+		if len(tail) > 0 {
+			tail = tail[:len(tail)-1]
+		}
+		return l.printf(tail+"\n", w[0], w[1:]...)
+	}
+}
+
 func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {
 	ret := l.printf(format, w1, w2...)
 	l.Flush()
