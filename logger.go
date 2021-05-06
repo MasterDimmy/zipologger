@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -36,7 +37,7 @@ type Logger struct {
 	max_age_in_days    int
 	write_fileline     bool
 
-	wg             sync.WaitGroup
+	wg             int32 //current_writes
 	stopwait_mutex sync.Mutex
 
 	ch chan *logger_message
@@ -101,7 +102,12 @@ func (l *Logger) Flush() {
 func (l *Logger) wait() {
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
-	l.wg.Wait()
+	for {
+		n := atomic.LoadInt32(&l.wg)
+		if n <= 0 {
+			break //	l.wg.Wait()s
+		}
+	}
 }
 
 //order and log to the file
@@ -111,7 +117,7 @@ func (l *Logger) init() {
 		go func() {
 			for elem := range l.ch {
 				func() {
-					defer l.wg.Done()
+					defer atomic.AddInt32(&l.wg, -1)
 
 					str := elem.msg
 
@@ -209,7 +215,8 @@ func (l *Logger) print(format string) string {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
-	l.wg.Add(1)
+	atomic.AddInt32(&l.wg, 1)
+
 	l.ch <- &logger_message{
 		msg: msg, //1 call
 	}
@@ -229,7 +236,8 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
 
-	l.wg.Add(1)
+	atomic.AddInt32(&l.wg, 1)
+
 	var w3 []interface{}
 	w3 = append(w3, w1)
 	if len(w2) > 0 {
