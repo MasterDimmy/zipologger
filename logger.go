@@ -107,6 +107,7 @@ func (l *Logger) wait() {
 		if n <= 0 {
 			break //	l.wg.Wait()s
 		}
+		time.Sleep(100)
 	}
 }
 
