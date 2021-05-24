@@ -52,3 +52,30 @@ func Test_println(t *testing.T) {
 
 	logger.Println(3, "2", d)
 }
+
+func Test_2logger_by_suffix(t *testing.T) {
+	defer Wait()
+
+	for i := 0; i < 100; i++ {
+		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, true)
+		l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
+
+		t.Log("print 1")
+
+		l2.Print("aaaa")
+
+		t.Log("flush 1")
+
+		l2.Flush()
+
+		t.Log("print 2")
+
+		l1.Print("bbb")
+
+		t.Log("flush 2")
+
+		l1.Flush()
+		l2.Flush()
+	}
+
+}

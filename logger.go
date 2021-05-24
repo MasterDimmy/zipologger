@@ -114,6 +114,9 @@ func (l *Logger) wait() {
 //order and log to the file
 func (l *Logger) init() {
 	l.ch = make(chan *logger_message, 1000)
+
+	var m sync.Mutex
+
 	for i := 1; i < 2; i++ { //в 2 треда на журнал
 		go func() {
 			for elem := range l.ch {
@@ -125,9 +128,12 @@ func (l *Logger) init() {
 					if !strings.HasSuffix(str, "\n") {
 						str += "\n"
 					}
+
+					m.Lock()
 					if l.log == nil {
 						l.log = newLogger(l.filename, l.log_max_size_in_mb, l.max_backups, l.max_age_in_days)
 					}
+					m.Unlock()
 
 					if l.log != nil {
 						l.log.Print(str)
