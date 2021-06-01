@@ -12,19 +12,16 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
+	"github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
-	"github.com/hashicorp/golang-lru"
 )
 
 type logger_message struct {
-	msg         string
-	to_file     bool
-	to_email    bool
-	email_theme string
+	msg string
+	log *Logger
 }
 
 type Logger struct {
@@ -37,38 +34,41 @@ type Logger struct {
 	max_age_in_days    int
 	write_fileline     bool
 
-	wg             int32 //current_writes
-	stopwait_mutex sync.Mutex
+	alsoToStdout bool
 
-	ch chan *logger_message
+	wg             sync.WaitGroup //current_writes
+	stopwait_mutex sync.Mutex
 
 	limited_print *lru.Cache //printid - unixitime
 }
 
-var inited_loggers sync.Map
-
 var alsoToStdout bool
+var purge_time = time.Second * 10 //логгер через указанное время будет удален
 
 func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-//create logger
-var NewLogger_mutex sync.Mutex
+var inited_loggers, _ = lru.NewWithExpire(100, purge_time)
+var newLogger_mutex sync.Mutex
+
+var init_logger_once sync.Once
+var tolog_ch = make(chan *logger_message, 1000)
 
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
-	NewLogger_mutex.Lock()
-	logger, ok := inited_loggers.Load(filename)
+	newLogger_mutex.Lock()
+	defer newLogger_mutex.Unlock()
+
+	logger, ok := inited_loggers.Get(filename)
 	if ok {
-		NewLogger_mutex.Unlock()
+		inited_loggers.Add(filename, logger)
 		return logger.(*Logger)
 	}
-	NewLogger_mutex.Unlock()
 
 	p := filepath.Dir(filename)
 	os.MkdirAll(p, 0666)
 	l, _ := lru.New(1000)
-	log := Logger{
+	log := &Logger{
 		filename:           filename,
 		log_max_size_in_mb: log_max_size_in_mb,
 		max_backups:        max_backups,
@@ -76,9 +76,11 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 		write_fileline:     write_fileline,
 		limited_print:      l,
 	}
-	log.init()
-	inited_loggers.Store(filename, &log)
-	return &log
+
+	go init_logger_once.Do(init_lib)
+
+	inited_loggers.Add(filename, log)
+	return log
 }
 
 //делает flush
@@ -87,63 +89,55 @@ var w_mutex sync.Mutex
 func Wait() {
 	w_mutex.Lock()
 	defer w_mutex.Unlock()
-	inited_loggers.Range(func(key interface{}, value interface{}) bool {
-		logger := value.(*Logger)
-		logger.wait()
-		return true
-	})
+	for w := range inited_loggers.Keys() {
+		log, ok := inited_loggers.Get(w)
+		if ok {
+			logger := log.(*Logger)
+			logger.wait()
+		}
+	}
 }
 
 func (l *Logger) Flush() {
 	l.wait()
 }
 
-//waiting till all will be writed
+//waiting till all will be written
 func (l *Logger) wait() {
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
-	for {
-		n := atomic.LoadInt32(&l.wg)
-		if n <= 0 {
-			break //	l.wg.Wait()s
-		}
-		time.Sleep(100)
-	}
+	l.wg.Add(1)
+	l.wg.Done()
+	l.wg.Wait()
 }
 
 //order and log to the file
-func (l *Logger) init() {
-	l.ch = make(chan *logger_message, 1000)
+func init_lib() {
+	m := sync.Mutex{}
+	for el := range tolog_ch {
+		el.log.wg.Add(1)
+		go func(elem *logger_message) {
+			defer elem.log.wg.Done()
 
-	var m sync.Mutex
-
-	for i := 1; i < 2; i++ { //в 2 треда на журнал
-		go func() {
-			for elem := range l.ch {
-				func() {
-					defer atomic.AddInt32(&l.wg, -1)
-
-					str := elem.msg
-
-					if !strings.HasSuffix(str, "\n") {
-						str += "\n"
-					}
-
-					m.Lock()
-					if l.log == nil {
-						l.log = newLogger(l.filename, l.log_max_size_in_mb, l.max_backups, l.max_age_in_days)
-					}
-					m.Unlock()
-
-					if l.log != nil {
-						l.log.Print(str)
-					} else {
-						panic("cant printf to log file")
-					}
-				}()
+			m.Lock()
+			if elem.log.log == nil { //create file to be written
+				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
 			}
-		}()
+			m.Unlock()
+
+			str := elem.msg
+
+			if !strings.HasSuffix(str, "\n") {
+				str += "\n"
+			}
+
+			elem.log.log.Print(str)
+		}(el)
 	}
+}
+
+func (l *Logger) SetAlsoToStdout(b bool) {
+	l.alsoToStdout = b
 }
 
 var start_caller_depth int
@@ -222,13 +216,12 @@ func (l *Logger) print(format string) string {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
-	atomic.AddInt32(&l.wg, 1)
-
-	l.ch <- &logger_message{
+	tolog_ch <- &logger_message{
 		msg: msg, //1 call
+		log: l,
 	}
 
-	if alsoToStdout {
+	if alsoToStdout || l.alsoToStdout {
 		fmt.Println(msg)
 	}
 
@@ -242,8 +235,6 @@ func (l *Logger) Print(format string) string {
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
 	l.stopwait_mutex.Lock()
 	defer l.stopwait_mutex.Unlock()
-
-	atomic.AddInt32(&l.wg, 1)
 
 	var w3 []interface{}
 	w3 = append(w3, w1)
@@ -261,11 +252,12 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
-	l.ch <- &logger_message{
+	tolog_ch <- &logger_message{
 		msg: msg,
+		log: l,
 	}
 
-	if alsoToStdout {
+	if alsoToStdout || l.alsoToStdout {
 		fmt.Println(msg)
 	}
 
@@ -389,18 +381,20 @@ func HandlePanic() {
 
 //автоматически создает и возвращает логгер на файл с заданным суффиксом
 var get_logger_by_suffix_mutex sync.Mutex
-var loggers_by_suffix = make(map[string]*Logger)
+var loggers_by_suffix, _ = lru.NewWithExpire(100, purge_time) //если не использовался - будет удален!!!
 
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	defer HandlePanic()
+
 	get_logger_by_suffix_mutex.Lock()
 	defer get_logger_by_suffix_mutex.Unlock()
 
-	log, ok := loggers_by_suffix[suffix]
+	log, ok := loggers_by_suffix.Get(suffix)
 	if ok {
-		return log
+		loggers_by_suffix.Add(suffix, log) //update expire cache
+		return log.(*Logger)
 	}
 	new_log := NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
-	loggers_by_suffix[suffix] = new_log
+	loggers_by_suffix.Add(suffix, new_log)
 	return new_log
 }
