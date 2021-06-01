@@ -42,6 +42,35 @@ type Logger struct {
 	limited_print *lru.Cache //printid - unixitime
 }
 
+//order and log to the file
+func init() {
+	go func() {
+		defer HandlePanic()
+
+		m := sync.Mutex{}
+		for el := range tolog_ch {
+			el.log.wg.Add(1)
+			go func(elem *logger_message) {
+				defer elem.log.wg.Done()
+
+				m.Lock()
+				if elem.log.log == nil { //create file to be written
+					elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
+				}
+				m.Unlock()
+
+				str := elem.msg
+
+				if !strings.HasSuffix(str, "\n") {
+					str += "\n"
+				}
+
+				elem.log.log.Print(str)
+			}(el)
+		}
+	}()
+}
+
 var alsoToStdout bool
 var purge_time = time.Second * 10 //логгер через указанное время будет удален
 
@@ -52,7 +81,6 @@ func SetAlsoToStdout(b bool) {
 var inited_loggers, _ = lru.NewWithExpire(100, purge_time)
 var newLogger_mutex sync.Mutex
 
-var init_logger_once sync.Once
 var tolog_ch = make(chan *logger_message, 1000)
 
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
@@ -76,8 +104,6 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 		write_fileline:     write_fileline,
 		limited_print:      l,
 	}
-
-	go init_logger_once.Do(init_lib)
 
 	inited_loggers.Add(filename, log)
 	return log
@@ -109,31 +135,6 @@ func (l *Logger) wait() {
 	l.wg.Add(1)
 	l.wg.Done()
 	l.wg.Wait()
-}
-
-//order and log to the file
-func init_lib() {
-	m := sync.Mutex{}
-	for el := range tolog_ch {
-		el.log.wg.Add(1)
-		go func(elem *logger_message) {
-			defer elem.log.wg.Done()
-
-			m.Lock()
-			if elem.log.log == nil { //create file to be written
-				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
-			}
-			m.Unlock()
-
-			str := elem.msg
-
-			if !strings.HasSuffix(str, "\n") {
-				str += "\n"
-			}
-
-			elem.log.log.Print(str)
-		}(el)
-	}
 }
 
 func (l *Logger) SetAlsoToStdout(b bool) {
