@@ -1,0 +1,95 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/MasterDimmy/zipologger"
+)
+
+/*
+	Add this file to your project,
+*/
+
+var admin_log *zipologger.Logger
+var debug_log *zipologger.Logger
+var error_log *zipologger.Logger
+
+const (
+	LOGGER_MAX_FILESIZE  = 5
+	LOGGER_MAX_BACKUPS   = 20
+	LOGGER_MAX_AGEINDAYS = 20
+)
+
+var logger_init = func() error {
+	err := os.Mkdir("logs", 0777)
+	if err != nil {
+		if !strings.Contains(err.Error(), "exists") {
+			panic(err)
+		}
+	}
+	admin_log = zipologger.NewLogger("./logs/admin.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	debug_log = zipologger.NewLogger("./logs/debug.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	error_log = zipologger.NewLogger("./logs/error.log", LOGGER_MAX_FILESIZE, LOGGER_MAX_BACKUPS, LOGGER_MAX_AGEINDAYS)
+	return nil
+}()
+
+//ADD THIS TO MAIN!!!!
+//defer loggers_wait()
+func loggers_wait() {
+	admin_log.Wait()
+	debug_log.Wait()
+	error_log.Wait()
+}
+
+func handlePanic() {
+	if e := recover(); e != nil {
+		str := zipologger.HandlePanic(error_log, e)
+		adminMail("PANIC", str)
+	}
+}
+
+func errp(format string) {
+	str := error_log.Print(format)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
+	adminMail("ERROR", str)
+}
+
+func errpf(format string, w1 interface{}, w2 ...interface{}) {
+	str := error_log.Printf(format, w1, w2...)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
+	adminMail("ERROR", str)
+}
+
+func adminp(format string) {
+	str := admin_log.Print(format)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
+	adminMail("ADMIN", str)
+}
+
+func adminpf(format string, w1 interface{}, w2 ...interface{}) {
+	str := admin_log.Printf(format, w1, w2...)
+	fmt.Printf("%s\n", strings.Trim(str, "\n"))
+	adminMail("ADMIN", str)
+}
+
+func debugp(format string) {
+	if config.Debug {
+		fmt.Printf("%s\n", strings.Trim(debug_log.Print(format), "\n"))
+	}
+}
+
+func debugpf(format string, w1 interface{}, w2 ...interface{}) {
+	if config.Debug {
+		fmt.Printf("%s\n", strings.Trim(debug_log.Printf(format, w1, w2...), "\n"))
+	}
+}
+
+func adebugp(format string) {
+	fmt.Printf("%s\n", strings.Trim(debug_log.Print(format), "\n"))
+}
+
+func adebugpf(format string, w1 interface{}, w2 ...interface{}) {
+	fmt.Printf("%s\n", strings.Trim(debug_log.Printf(format, w1, w2...), "\n"))
+}
