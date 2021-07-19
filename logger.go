@@ -124,6 +124,11 @@ func Wait() {
 	}
 }
 
+func (l *Logger) Writer() {
+	return l.log.Writer()
+}
+
+
 func (l *Logger) Flush() {
 	l.wait()
 }
