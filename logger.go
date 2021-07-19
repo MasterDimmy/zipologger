@@ -6,13 +6,14 @@ package zipologger
 
 import (
 	"fmt"
-	"log"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -37,8 +38,7 @@ type Logger struct {
 
 	alsoToStdout bool
 
-	wg             sync.WaitGroup //current_writes
-	stopwait_mutex sync.Mutex
+	writing int64
 
 	limited_print *lru.Cache //printid - unixitime
 }
@@ -48,26 +48,22 @@ func init() {
 	go func() {
 		defer HandlePanic()
 
-		m := sync.Mutex{}
-		for el := range tolog_ch {
-			el.log.wg.Add(1)
-			go func(elem *logger_message) {
-				defer elem.log.wg.Done()
+		//remove parallel write due to order breaking
+		for elem := range tolog_ch {
+			atomic.AddInt64(&elem.log.writing, 1)
 
-				m.Lock()
-				if elem.log.log == nil { //create file to be written
-					elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
-				}
-				m.Unlock()
+			if elem.log.log == nil { //create file to be written
+				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
+			}
 
-				str := elem.msg
+			str := elem.msg
 
-				if !strings.HasSuffix(str, "\n") {
-					str += "\n"
-				}
+			if !strings.HasSuffix(str, "\n") {
+				str += "\n"
+			}
 
-				elem.log.log.Print(str)
-			}(el)
+			elem.log.log.Print(str)
+			atomic.AddInt64(&elem.log.writing, -1)
 		}
 	}()
 }
@@ -120,7 +116,7 @@ func Wait() {
 		log, ok := inited_loggers.Get(w)
 		if ok {
 			logger := log.(*Logger)
-			logger.wait()
+			logger.Wait()
 		}
 	}
 }
@@ -129,18 +125,15 @@ func (l *Logger) Writer() io.Writer {
 	return l.log.Writer()
 }
 
-
 func (l *Logger) Flush() {
-	l.wait()
+	l.Wait()
 }
 
 //waiting till all will be written
-func (l *Logger) wait() {
-	l.stopwait_mutex.Lock()
-	defer l.stopwait_mutex.Unlock()
-	l.wg.Add(1)
-	l.wg.Done()
-	l.wg.Wait()
+func (l *Logger) Wait() {
+	for atomic.LoadInt64(&l.writing) != 0 {
+		time.Sleep(time.Microsecond)
+	}
 }
 
 func (l *Logger) SetAlsoToStdout(b bool) {
@@ -215,9 +208,6 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(format string) string {
-	l.stopwait_mutex.Lock()
-	defer l.stopwait_mutex.Unlock()
-
 	msg := format
 	if l.write_fileline {
 		msg = formatCaller(GetStartCallerDepth()) + msg
@@ -240,9 +230,6 @@ func (l *Logger) Print(format string) string {
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
-	l.stopwait_mutex.Lock()
-	defer l.stopwait_mutex.Unlock()
-
 	var w3 []interface{}
 	w3 = append(w3, w1)
 	if len(w2) > 0 {

@@ -52,19 +52,27 @@ func Test_println(t *testing.T) {
 
 	logger.Println(3, "2", d)
 
-	logger.wait()
+	t.Log("wait 1")
+	Wait()
+	t.Log("wait 2")
+	Wait()
 }
 
 func Test_2logger_by_suffix(t *testing.T) {
 	defer Wait()
 
-	for i := 0; i < 1000; i++ {
-		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, true)
+	SetAlsoToStdout(false)
+
+	for i := 0; i < 10000; i++ {
+		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, false)
 		l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
 
 		//t.Log("print 1")
 
-		l2.Print("aaaa")
+		st := l2.Print("aaaa")
+		if i%100 == 0 {
+			t.Log(st)
+		}
 
 		//t.Log("flush 1")
 
@@ -78,10 +86,10 @@ func Test_2logger_by_suffix(t *testing.T) {
 
 		l1.Flush()
 		l2.Flush()
-		l1.wait()
-		l2.wait()
-		l1.wait()
-		l1.wait()
+		l1.Wait()
+		l2.Wait()
+		l1.Wait()
+		l1.Wait()
 	}
 
 }
