@@ -7,6 +7,7 @@ package zipologger
 import (
 	"fmt"
 	"log"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -124,7 +125,7 @@ func Wait() {
 	}
 }
 
-func (l *Logger) Writer() {
+func (l *Logger) Writer() io.Writer {
 	return l.log.Writer()
 }
 
