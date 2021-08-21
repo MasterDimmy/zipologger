@@ -75,13 +75,12 @@ var EMPTY_LOGGER = &Logger{
 }
 
 var alsoToStdout bool
-var purge_time = time.Second * 10 //логгер через указанное время будет удален
 
 func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var inited_loggers, _ = lru.NewWithExpire(100, purge_time)
+var inited_loggers, _ = lru.NewARC(1000)
 var newLogger_mutex sync.Mutex
 
 var tolog_ch = make(chan *logger_message, 1000)
@@ -97,7 +96,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 	}
 
 	p := filepath.Dir(filename)
-	os.MkdirAll(p, 0666)
+	os.MkdirAll(p, 0644)
 	l, _ := lru.New(1000)
 	log := &Logger{
 		filename:           filename,
@@ -118,7 +117,7 @@ var w_mutex sync.Mutex
 func Wait() {
 	w_mutex.Lock()
 	defer w_mutex.Unlock()
-	for w := range inited_loggers.Keys() {
+	for _, w := range inited_loggers.Keys() {
 		log, ok := inited_loggers.Get(w)
 		if ok {
 			logger := log.(*Logger)
@@ -142,8 +141,6 @@ func (l *Logger) Flush() {
 //waiting till all will be written
 func (l *Logger) Wait() {
 	for atomic.LoadInt64(&l.log_tasks_cnt) > 0 {
-		l.log_tasks.Add(1)
-		l.log_tasks.Done()
 		l.log_tasks.Wait()
 	}
 }
@@ -219,8 +216,8 @@ func formatCaller(add int) string {
 	return ret
 }
 
-func (l *Logger) print(msg string, format bool) string {
-	if l.write_fileline && format {
+func (l *Logger) print(msg string) string {
+	if l.write_fileline {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
@@ -240,7 +237,7 @@ func (l *Logger) print(msg string, format bool) string {
 }
 
 func (l *Logger) Print(format string) string {
-	return l.print(format, true) //2 cal l
+	return l.print(format)
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
@@ -251,10 +248,8 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 			w3 = append(w3, v)
 		}
 	}
-	msg := new(string)
-	*msg = fmt.Sprintf(format, w3...)
 
-	return l.print(*msg, false)
+	return l.print(fmt.Sprintf(format, w3...))
 }
 
 //выводит на печать первый вызов, затем не чаще, чем duration для данной строки printid
@@ -374,20 +369,8 @@ func HandlePanic() {
 
 //автоматически создает и возвращает логгер на файл с заданным суффиксом
 var get_logger_by_suffix_mutex sync.Mutex
-var loggers_by_suffix, _ = lru.NewWithExpire(100, purge_time) //если не использовался - будет удален!!!
+var loggers_by_suffix, _ = lru.New(100) //если не использовался - будет удален!!!
 
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
-	defer HandlePanic()
-
-	get_logger_by_suffix_mutex.Lock()
-	defer get_logger_by_suffix_mutex.Unlock()
-
-	log, ok := loggers_by_suffix.Get(suffix)
-	if ok {
-		loggers_by_suffix.Add(suffix, log) //update expire cache
-		return log.(*Logger)
-	}
-	new_log := NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
-	loggers_by_suffix.Add(suffix, new_log)
-	return new_log
+	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
 }

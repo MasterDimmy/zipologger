@@ -7,33 +7,55 @@ import (
 	"testing"
 )
 
-func Test_EmptyLogger(t *testing.T) {
-	defer Wait()
-
-	SetAlsoToStdout(false)
-
+func init() {
 	os.Chdir("C:\\gopath\\src\\github.com\\MasterDimmy\\zipologger\\")
+}
 
+func remove_logs() {
 	err := os.Remove("./logs/a.log")
 	if err != nil && !strings.Contains(err.Error(), "The system cannot find the file") {
-		t.Fatal(err.Error())
+		panic(err.Error())
 	}
 	err = os.Remove("./logs/b.log")
 	if err != nil && !strings.Contains(err.Error(), "The system cannot find the file") {
-		t.Fatal(err.Error())
+		panic(err.Error())
 	}
+}
+
+func Test_wait(t *testing.T) {
+	SetAlsoToStdout(false)
+
+	remove_logs()
+
+	l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, true)
+	l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, true)
 
 	for i := 0; i < 100; i++ {
-		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, false)
-		l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
+		l2.Print("aaaa")
+		l1.Print("bbb")
+	}
 
+	Wait()
+
+	tf := func(fname string, cnt int) {
+		a1, err := os.ReadFile(fname)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+		astr := strings.TrimSpace(string(a1))
+		al := strings.Split(astr, "\n")
+		if len(al) != cnt {
+			t.Fatalf("%s not %d lines: %d\n", fname, cnt, len(al))
+		}
+	}
+
+	tf("./logs/a.log", 100)
+	tf("./logs/b.log", 100)
+
+	for i := 0; i < 100; i++ {
 		//t.Log("print 1")
 
-		st := l2.Print("aaaa")
-		if st != "aaaa" {
-			t.Fatal()
-		}
-
+		l2.Print("aaaa")
 		l2.Flush()
 
 		l1.Print("bbb")
@@ -47,22 +69,22 @@ func Test_EmptyLogger(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < 100; i++ {
-		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, false)
-		l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
-
-		wg.Add(1)
-		go func() {
-			l1.Printf("[%d]", i)
-			l2.Printf("[%d]", i)
-			l1.Printf("[%d]", i)
+	for ii := 0; ii < 100; ii++ {
+		go func(i int) {
 			wg.Add(1)
-			go func() {
-				l2.Println("zzzz")
+			go func(j int) {
+				l1.Printf("[%d]", j)
+				l2.Printf("[%d]", j)
+				l1.Printf("[%d]", j)
+				wg.Add(1)
+				go func() {
+					l2.Println("zzzz")
+					wg.Done()
+				}()
 				wg.Done()
-			}()
-			wg.Done()
-		}()
+			}(i)
+		}(ii)
+
 	}
 
 	empty := EMPTY_LOGGER
@@ -72,20 +94,16 @@ func Test_EmptyLogger(t *testing.T) {
 
 	wg.Wait()
 
-	Wait()
-
-	tf := func(fname string) {
-		a1, err := os.ReadFile(fname)
-		if err != nil {
-			t.Fatal(err.Error())
-		}
-		astr := strings.TrimSpace(string(a1))
-		al := strings.Split(astr, "\n")
-		if len(al) != 300 {
-			t.Fatalf("%s not 300 lines: %d\n", fname, len(al))
-		}
+	for i := 0; i < 100; i++ {
+		l1.Printf("zxswq [%d]", i)
 	}
 
-	tf("./logs/a.log")
-	tf("./logs/b.log")
+	for i := 0; i < 100; i++ {
+		l2.Printf("tgbf [%d]", i)
+	}
+
+	Wait()
+
+	tf("./logs/a.log", 500)
+	tf("./logs/b.log", 500)
 }
