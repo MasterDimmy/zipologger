@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -38,8 +37,7 @@ type Logger struct {
 
 	alsoToStdout bool
 
-	log_tasks     sync.WaitGroup //сколько сообщений в очереди?
-	log_tasks_cnt int64          //исправление ошибки опоздания
+	log_tasks sync.WaitGroup //сколько сообщений в очереди?
 
 	limited_print *lru.Cache //printid - unixitime
 }
@@ -64,7 +62,6 @@ func init() {
 			elem.log.log.Print(str)
 
 			elem.log.log_tasks.Done()
-			atomic.AddInt64(&elem.log.log_tasks_cnt, -1)
 		}
 	}()
 }
@@ -140,9 +137,7 @@ func (l *Logger) Flush() {
 
 //waiting till all will be written
 func (l *Logger) Wait() {
-	for atomic.LoadInt64(&l.log_tasks_cnt) > 0 {
-		l.log_tasks.Wait()
-	}
+	l.log_tasks.Wait()
 }
 
 func (l *Logger) SetAlsoToStdout(b bool) {
@@ -221,6 +216,8 @@ func (l *Logger) print(msg string) string {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
+	l.log_tasks.Add(1)
+
 	tolog_ch <- &logger_message{
 		msg: msg, //1 call
 		log: l,
@@ -229,9 +226,6 @@ func (l *Logger) print(msg string) string {
 	if alsoToStdout || l.alsoToStdout {
 		fmt.Println(msg)
 	}
-
-	l.log_tasks.Add(1)
-	atomic.AddInt64(&l.log_tasks_cnt, 1)
 
 	return msg
 }
