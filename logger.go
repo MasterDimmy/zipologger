@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -37,7 +38,8 @@ type Logger struct {
 
 	alsoToStdout bool
 
-	working sync.Mutex
+	log_tasks     sync.WaitGroup //сколько сообщений в очереди?
+	log_tasks_cnt int64          //исправление ошибки опоздания
 
 	limited_print *lru.Cache //printid - unixitime
 }
@@ -49,8 +51,6 @@ func init() {
 
 		//remove parallel write due to order breaking
 		for elem := range tolog_ch {
-			elem.log.working.Lock()
-
 			if elem.log.log == nil { //create file to be written
 				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
 			}
@@ -62,9 +62,16 @@ func init() {
 			}
 
 			elem.log.log.Print(str)
-			elem.log.working.Unlock()
+
+			elem.log.log_tasks.Done()
+			atomic.AddInt64(&elem.log.log_tasks_cnt, -1)
 		}
 	}()
+}
+
+var EMPTY_LOGGER = &Logger{
+	log:      log.Default(),
+	filename: "",
 }
 
 var alsoToStdout bool
@@ -121,7 +128,11 @@ func Wait() {
 }
 
 func (l *Logger) Writer() io.Writer {
-	return l.log.Writer()
+	if l.log != nil {
+		return l.log.Writer()
+	} else {
+		return nil
+	}
 }
 
 func (l *Logger) Flush() {
@@ -130,8 +141,11 @@ func (l *Logger) Flush() {
 
 //waiting till all will be written
 func (l *Logger) Wait() {
-	l.working.Lock()
-	l.working.Unlock()
+	for atomic.LoadInt64(&l.log_tasks_cnt) > 0 {
+		l.log_tasks.Add(1)
+		l.log_tasks.Done()
+		l.log_tasks.Wait()
+	}
 }
 
 func (l *Logger) SetAlsoToStdout(b bool) {
@@ -205,9 +219,8 @@ func formatCaller(add int) string {
 	return ret
 }
 
-func (l *Logger) print(format string) string {
-	msg := format
-	if l.write_fileline {
+func (l *Logger) print(msg string, format bool) string {
+	if l.write_fileline && format {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
 
@@ -220,11 +233,14 @@ func (l *Logger) print(format string) string {
 		fmt.Println(msg)
 	}
 
+	l.log_tasks.Add(1)
+	atomic.AddInt64(&l.log_tasks_cnt, 1)
+
 	return msg
 }
 
 func (l *Logger) Print(format string) string {
-	return l.print(format) //2 cal l
+	return l.print(format, true) //2 cal l
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
@@ -235,25 +251,10 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 			w3 = append(w3, v)
 		}
 	}
-	if !strings.HasSuffix(format, "\n") {
-		format += "\n"
-	}
-	msg := fmt.Sprintf(format, w3...)
+	msg := new(string)
+	*msg = fmt.Sprintf(format, w3...)
 
-	if l.write_fileline {
-		msg = formatCaller(GetStartCallerDepth()) + msg
-	}
-
-	tolog_ch <- &logger_message{
-		msg: msg,
-		log: l,
-	}
-
-	if alsoToStdout || l.alsoToStdout {
-		fmt.Println(msg)
-	}
-
-	return msg
+	return l.print(*msg, false)
 }
 
 //выводит на печать первый вызов, затем не чаще, чем duration для данной строки printid
@@ -339,7 +340,7 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 
 	if err != nil {
-		fmt.Printf("error opening file: %v", err)
+		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v", err))
 		os.Exit(1)
 	}
 	logg := log.New(e, "", log.Ldate|log.Ltime)
