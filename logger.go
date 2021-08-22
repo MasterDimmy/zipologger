@@ -7,6 +7,7 @@ package zipologger
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -66,10 +67,15 @@ func init() {
 	}()
 }
 
-var EMPTY_LOGGER = &Logger{
-	log:      log.Default(),
-	filename: "",
-}
+//you can set Logger to this to write nowhere
+var EmptyLogger = func() *Logger {
+	nowhere := &log.Logger{}
+	nowhere.SetOutput(ioutil.Discard)
+	return &Logger{
+		log:      nowhere,
+		filename: "",
+	}
+}()
 
 var alsoToStdout bool
 

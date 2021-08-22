@@ -92,7 +92,7 @@ func Test_wait(t *testing.T) {
 
 	}
 
-	empty := EMPTY_LOGGER
+	empty := EmptyLogger
 	empty.Print("te")
 	empty.Flush()
 	empty.Wait()
