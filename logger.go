@@ -83,7 +83,7 @@ func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var inited_loggers, _ = lru.NewARC(1000)
+var inited_loggers, _ = lru.NewARCWithExpire(1000, time.Minute)
 var newLogger_mutex sync.Mutex
 
 var tolog_ch = make(chan *logger_message, 1000)
