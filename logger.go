@@ -214,6 +214,10 @@ func formatCaller(add int) string {
 		ret = ret + ": "
 	}
 
+	if len(ret) > 5 {
+		ret += "\n"
+	}
+
 	return ret
 }
 
