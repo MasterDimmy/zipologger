@@ -372,9 +372,6 @@ func HandlePanic() {
 }
 
 //автоматически создает и возвращает логгер на файл с заданным суффиксом
-var get_logger_by_suffix_mutex sync.Mutex
-var loggers_by_suffix, _ = lru.New(100) //если не использовался - будет удален!!!
-
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
 }
