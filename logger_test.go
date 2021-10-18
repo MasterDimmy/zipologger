@@ -1,7 +1,9 @@
 package zipologger
 
 import (
+	"fmt"
 	"testing"
+	"time"
 )
 
 var logger *Logger
@@ -69,7 +71,7 @@ func Test_2logger_by_suffix(t *testing.T) {
 
 		//t.Log("print 1")
 
-		st := l2.Print("aaaa")
+		st := l2.Printf("%d aaaa - %s", i, time.Now().String())
 		if i%100 == 0 {
 			t.Log(st)
 		}
@@ -92,4 +94,23 @@ func Test_2logger_by_suffix(t *testing.T) {
 		l1.Wait()
 	}
 
+}
+
+func Test_CloseFiles(t *testing.T) {
+	defer Wait()
+
+	sw := GetLoggerBySuffix(fmt.Sprintf("123123.log"), "./logs/", 1, 1, 1, false)
+	sw.Print("123123123")
+
+	Wait()
+
+	SetAlsoToStdout(false)
+
+	for i := 0; i < 100; i++ {
+		l1 := GetLoggerBySuffix(fmt.Sprintf("a_%d.log", i), "./logs/", 1, 1, 1, false)
+		l1.Printf("%d a", i)
+	}
+
+	Wait()
+	Wait()
 }

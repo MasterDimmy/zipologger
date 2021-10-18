@@ -27,7 +27,8 @@ type logger_message struct {
 }
 
 type Logger struct {
-	log *log.Logger
+	log  *log.Logger
+	zlog *zilorot.Logger
 
 	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
@@ -43,6 +44,8 @@ type Logger struct {
 	limited_print *lru.Cache //printid - unixitime
 }
 
+var tolog_ch = make(chan *logger_message, 1000)
+
 //order and log to the file
 func init() {
 	go func() {
@@ -51,7 +54,7 @@ func init() {
 		//remove parallel write due to order breaking
 		for elem := range tolog_ch {
 			if elem.log.log == nil { //create file to be written
-				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
+				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
 			}
 
 			str := elem.msg
@@ -83,10 +86,19 @@ func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var inited_loggers, _ = lru.NewARCWithExpire(1000, time.Minute)
-var newLogger_mutex sync.Mutex
+var closing_log_files sync.WaitGroup
+var inited_loggers, _ = lru.NewWithEvict(50, func(key interface{}, value interface{}) {
+	log := value.(*Logger)
 
-var tolog_ch = make(chan *logger_message, 1000)
+	closing_log_files.Add(1)
+	go func() {
+		defer closing_log_files.Done()
+		if log.zlog != nil {
+			log.zlog.Close()
+		}
+	}()
+})
+var newLogger_mutex sync.Mutex
 
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
 	newLogger_mutex.Lock()
@@ -127,6 +139,7 @@ func Wait() {
 			logger.Wait()
 		}
 	}
+	closing_log_files.Wait()
 }
 
 func (l *Logger) Writer() io.Writer {
@@ -335,7 +348,7 @@ func savePanicToFile(pdesc string) string {
 	return ""
 }
 
-func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *log.Logger {
+func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) (*log.Logger, *zilorot.Logger) {
 	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 
 	if err != nil {
@@ -344,16 +357,19 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 	}
 	logg := log.New(e, "", log.Ldate|log.Ltime)
 
+	var output *zilorot.Logger
+
 	if logg != nil {
-		logg.SetOutput(&zilorot.Logger{
+		output = &zilorot.Logger{
 			Filename:   name,
 			MaxSize:    log_max_size_in_mb, // megabytes
 			MaxBackups: max_backups,
 			MaxAge:     max_age_in_days, //days
-		})
+		}
+		logg.SetOutput(output)
 	}
 
-	return logg
+	return logg, output
 }
 
 var ErrorCatcher *errorcatcher.System
