@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -27,8 +28,9 @@ type logger_message struct {
 }
 
 type Logger struct {
-	log  *log.Logger
-	zlog *zilorot.Logger
+	log          *log.Logger
+	zlog         *zilorot.Logger
+	wait_started int32
 
 	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
@@ -156,7 +158,9 @@ func (l *Logger) Flush() {
 
 //waiting till all will be written
 func (l *Logger) Wait() {
+	atomic.StoreInt32(&l.wait_started, 1)
 	l.log_tasks.Wait()
+	atomic.StoreInt32(&l.wait_started, 0)
 }
 
 func (l *Logger) SetAlsoToStdout(b bool) {
@@ -235,6 +239,10 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(msg string) string {
+	if atomic.LoadInt32(&l.wait_started) > 0 { //forbid add if wait called!
+		return msg
+	}
+
 	if l.write_fileline {
 		msg = formatCaller(GetStartCallerDepth()) + msg
 	}
