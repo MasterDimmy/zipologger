@@ -31,6 +31,7 @@ type Logger struct {
 	log          *log.Logger
 	zlog         *zilorot.Logger
 	wait_started int32
+	m            sync.Mutex
 
 	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
@@ -158,6 +159,8 @@ func (l *Logger) Flush() {
 
 //waiting till all will be written
 func (l *Logger) Wait() {
+	l.m.Lock()
+	defer l.m.Unlock()
 	atomic.StoreInt32(&l.wait_started, 1)
 	l.log_tasks.Wait()
 	atomic.StoreInt32(&l.wait_started, 0)
