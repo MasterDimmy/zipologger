@@ -38,13 +38,15 @@ type Logger struct {
 	log_max_size_in_mb int
 	max_backups        int
 	max_age_in_days    int
-	write_fileline     bool
 
 	alsoToStdout bool
 
 	log_tasks sync.WaitGroup //сколько сообщений в очереди?
 
 	limited_print *lru.Cache //printid - unixitime
+
+	logDateTime   bool //писать время дату в начале записи лога?
+	logSourcePath bool //писать адрес вызова функции лога?
 }
 
 var tolog_ch = make(chan *logger_message, 1000)
@@ -82,6 +84,27 @@ var EmptyLogger = func() *Logger {
 		filename: "",
 	}
 }()
+
+func (l *Logger) WriteSourcePath(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.logSourcePath = b
+	return l
+}
+
+func (l *Logger) WriteDateTime(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.logDateTime = b
+	return l
+}
+
+func (l *Logger) SetAlsoToStdout(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.alsoToStdout = b
+	return l
+}
 
 var alsoToStdout bool
 
@@ -121,8 +144,9 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 		log_max_size_in_mb: log_max_size_in_mb,
 		max_backups:        max_backups,
 		max_age_in_days:    max_age_in_days,
-		write_fileline:     write_fileline,
+		logSourcePath:      write_fileline,
 		limited_print:      l,
+		logDateTime:        true,
 	}
 
 	inited_loggers.Add(filename, log)
@@ -164,10 +188,6 @@ func (l *Logger) Wait() {
 	atomic.StoreInt32(&l.wait_started, 1)
 	l.log_tasks.Wait()
 	atomic.StoreInt32(&l.wait_started, 0)
-}
-
-func (l *Logger) SetAlsoToStdout(b bool) {
-	l.alsoToStdout = b
 }
 
 var start_caller_depth int
@@ -246,8 +266,12 @@ func (l *Logger) print(msg string) string {
 		return msg
 	}
 
-	if l.write_fileline {
+	if l.logSourcePath {
 		msg = formatCaller(GetStartCallerDepth()) + msg
+	}
+
+	if l.logDateTime {
+		msg = time.Now().Format("2006/01/02 15:04:05 ") + msg
 	}
 
 	l.log_tasks.Add(1)
@@ -366,7 +390,7 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v", err))
 		os.Exit(1)
 	}
-	logg := log.New(e, "", log.Ldate|log.Ltime)
+	logg := log.New(e, "", 0)
 
 	var output *zilorot.Logger
 
