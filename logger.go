@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
@@ -27,21 +28,28 @@ type logger_message struct {
 }
 
 type Logger struct {
-	log *log.Logger
+	log          *log.Logger
+	zlog         *zilorot.Logger
+	wait_started int32
+	m            sync.Mutex
 
 	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
 	log_max_size_in_mb int
 	max_backups        int
 	max_age_in_days    int
-	write_fileline     bool
 
 	alsoToStdout bool
 
 	log_tasks sync.WaitGroup //сколько сообщений в очереди?
 
 	limited_print *lru.Cache //printid - unixitime
+
+	logDateTime   bool //писать время дату в начале записи лога?
+	logSourcePath bool //писать адрес вызова функции лога?
 }
+
+var tolog_ch = make(chan *logger_message, 1000)
 
 //order and log to the file
 func init() {
@@ -51,7 +59,7 @@ func init() {
 		//remove parallel write due to order breaking
 		for elem := range tolog_ch {
 			if elem.log.log == nil { //create file to be written
-				elem.log.log = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
+				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
 			}
 
 			str := elem.msg
@@ -77,16 +85,46 @@ var EmptyLogger = func() *Logger {
 	}
 }()
 
+func (l *Logger) WriteSourcePath(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.logSourcePath = b
+	return l
+}
+
+func (l *Logger) WriteDateTime(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.logDateTime = b
+	return l
+}
+
+func (l *Logger) SetAlsoToStdout(b bool) *Logger {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.alsoToStdout = b
+	return l
+}
+
 var alsoToStdout bool
 
 func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var inited_loggers, _ = lru.NewARCWithExpire(1000, time.Minute)
-var newLogger_mutex sync.Mutex
+var closing_log_files sync.WaitGroup
+var inited_loggers, _ = lru.NewWithEvict(50, func(key interface{}, value interface{}) {
+	log := value.(*Logger)
 
-var tolog_ch = make(chan *logger_message, 1000)
+	closing_log_files.Add(1)
+	go func() {
+		defer closing_log_files.Done()
+		if log.zlog != nil {
+			log.zlog.Close()
+		}
+	}()
+})
+var newLogger_mutex sync.Mutex
 
 func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
 	newLogger_mutex.Lock()
@@ -106,8 +144,9 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 		log_max_size_in_mb: log_max_size_in_mb,
 		max_backups:        max_backups,
 		max_age_in_days:    max_age_in_days,
-		write_fileline:     write_fileline,
+		logSourcePath:      write_fileline,
 		limited_print:      l,
+		logDateTime:        true,
 	}
 
 	inited_loggers.Add(filename, log)
@@ -127,6 +166,7 @@ func Wait() {
 			logger.Wait()
 		}
 	}
+	closing_log_files.Wait()
 }
 
 func (l *Logger) Writer() io.Writer {
@@ -143,11 +183,11 @@ func (l *Logger) Flush() {
 
 //waiting till all will be written
 func (l *Logger) Wait() {
+	l.m.Lock()
+	defer l.m.Unlock()
+	atomic.StoreInt32(&l.wait_started, 1)
 	l.log_tasks.Wait()
-}
-
-func (l *Logger) SetAlsoToStdout(b bool) {
-	l.alsoToStdout = b
+	atomic.StoreInt32(&l.wait_started, 0)
 }
 
 var start_caller_depth int
@@ -222,8 +262,16 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(msg string) string {
-	if l.write_fileline {
+	if atomic.LoadInt32(&l.wait_started) > 0 { //forbid add if wait called!
+		return msg
+	}
+
+	if l.logSourcePath {
 		msg = formatCaller(GetStartCallerDepth()) + msg
+	}
+
+	if l.logDateTime {
+		msg = time.Now().Format("2006/01/02 15:04:05 ") + msg
 	}
 
 	l.log_tasks.Add(1)
@@ -335,25 +383,28 @@ func savePanicToFile(pdesc string) string {
 	return ""
 }
 
-func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) *log.Logger {
+func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) (*log.Logger, *zilorot.Logger) {
 	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 
 	if err != nil {
 		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v", err))
 		os.Exit(1)
 	}
-	logg := log.New(e, "", log.Ldate|log.Ltime)
+	logg := log.New(e, "", 0)
+
+	var output *zilorot.Logger
 
 	if logg != nil {
-		logg.SetOutput(&zilorot.Logger{
+		output = &zilorot.Logger{
 			Filename:   name,
 			MaxSize:    log_max_size_in_mb, // megabytes
 			MaxBackups: max_backups,
 			MaxAge:     max_age_in_days, //days
-		})
+		}
+		logg.SetOutput(output)
 	}
 
-	return logg
+	return logg, output
 }
 
 var ErrorCatcher *errorcatcher.System
@@ -372,9 +423,6 @@ func HandlePanic() {
 }
 
 //автоматически создает и возвращает логгер на файл с заданным суффиксом
-var get_logger_by_suffix_mutex sync.Mutex
-var loggers_by_suffix, _ = lru.New(100) //если не использовался - будет удален!!!
-
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
 }

@@ -1,9 +1,3 @@
-github.com/MasterDimmy/errorcatcher v0.0.20 h1:KVl5dy1gF9m5Cfv+xjOvU+xigyxFg24UhVFU0mfDVqM=
-github.com/MasterDimmy/errorcatcher v0.0.20/go.mod h1:FukOdzRhzYAK+43bw8SeujbsDmrMLUCtNDGBZzT1pbc=
-github.com/MasterDimmy/errorcatcher v0.0.24 h1:rUYlHN44QGHFRJ6IH6TJG3qnePmecLBuuLI74ZZko2Q=
-github.com/MasterDimmy/errorcatcher v0.0.24/go.mod h1:FukOdzRhzYAK+43bw8SeujbsDmrMLUCtNDGBZzT1pbc=
-github.com/MasterDimmy/errorcatcher v0.0.25 h1:fdYje0O7MNFyn02C574laSgWn4GzVgKXfppv+odrFSI=
-github.com/MasterDimmy/errorcatcher v0.0.25/go.mod h1:FukOdzRhzYAK+43bw8SeujbsDmrMLUCtNDGBZzT1pbc=
 github.com/MasterDimmy/errorcatcher v0.0.26 h1:M7RcqUtXd4OCH+hDAdK2N+IZg4jgAJuT6Bptr3i+Gb0=
 github.com/MasterDimmy/errorcatcher v0.0.26/go.mod h1:FukOdzRhzYAK+43bw8SeujbsDmrMLUCtNDGBZzT1pbc=
 github.com/MasterDimmy/golang-lruexpire v0.2.1 h1:W6y4mdhV8gMMzoWHU+DLtKvWXQQflVefXo8/q/bXDiw=
