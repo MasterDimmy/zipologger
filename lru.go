@@ -74,6 +74,20 @@ func (c *Cache) Get(key interface{}) (interface{}, bool) {
 	return c.lru.Get(key)
 }
 
+
+// Returns old or just created object
+func (c *Cache) GetOrAdd(key, value interface{}) (val interface{}) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if v, ok := c.lru.Get(key);ok {
+		return v
+	} else {
+		c.lru.Add(key, value)
+		return value
+	}
+}
+
 // Check if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
 func (c *Cache) Contains(key interface{}) bool {
