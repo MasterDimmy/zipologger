@@ -36,12 +36,7 @@ var logger_init = func() error {
 }()
 
 //ADD THIS TO MAIN!!!!
-//defer loggers_wait()
-func loggers_wait() {
-	admin_log.Wait()
-	debug_log.Wait()
-	error_log.Wait()
-}
+//defer zipologger.Wait()
 
 func handlePanic() {
 	if e := recover(); e != nil {
