@@ -1,9 +1,5 @@
 package zipologger
 
-/*
-	Набор функций для ротационного журналирования
-*/
-
 import (
 	"encoding/base64"
 	"fmt"
@@ -39,7 +35,6 @@ type Logger struct {
 	em            sync.Mutex
 	encryptionKey *enc.KeyEncrypt
 
-	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
 	log_max_size_in_mb int
 	max_backups        int
@@ -47,12 +42,12 @@ type Logger struct {
 
 	alsoToStdout bool
 
-	log_tasks sync.WaitGroup //сколько сообщений в очереди?
+	log_tasks sync.WaitGroup
 
 	limited_print *lru.Cache //printid - unixitime
 
-	logDateTime   bool //писать время дату в начале записи лога?
-	logSourcePath bool //писать адрес вызова функции лога?
+	logDateTime   bool
+	logSourcePath bool
 }
 
 var tolog_ch = make(chan *logger_message, 1000)
@@ -137,7 +132,7 @@ func SetAlsoToStdout(b bool) {
 }
 
 var closing_log_files sync.WaitGroup
-var inited_loggers, _ = lru.NewWithEvict(50, func(key interface{}, value interface{}) {
+var inited_loggers, _ = lru.NewWithEvict(100, func(key interface{}, value interface{}) {
 	log := value.(*Logger)
 
 	closing_log_files.Add(1)
@@ -328,7 +323,7 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	return l.print(fmt.Sprintf(format, w3...))
 }
 
-//выводит на печать первый вызов, затем не чаще, чем duration для данной строки printid
+//prints format not often then diration time per printid
 func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format string, w1 interface{}, w2 ...interface{}) {
 	old, ok := l.limited_print.Get(printid)
 	if ok {
@@ -446,7 +441,6 @@ func HandlePanic() {
 	}
 }
 
-//автоматически создает и возвращает логгер на файл с заданным суффиксом
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
 }
