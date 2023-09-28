@@ -17,6 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/MasterDimmy/zipologger/enc"
+
 	"github.com/MasterDimmy/errorcatcher"
 	"github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
@@ -32,6 +34,9 @@ type Logger struct {
 	zlog         *zilorot.Logger
 	wait_started int32
 	m            sync.Mutex
+
+	em            sync.Mutex
+	encryptionKey *enc.KeyEncrypt
 
 	//файл будет создан при первой записи, чтобы не делать пустышки
 	filename           string
@@ -64,9 +69,27 @@ func init() {
 
 			str := elem.msg
 
-			if !strings.HasSuffix(str, "\n") {
-				str += "\n"
+			for strings.HasSuffix(str, "\n") {
+				str, _ = strings.CutSuffix(str, "\n")
 			}
+
+			globalEncryptor.m.Lock()
+			elem.log.em.Lock()
+			enckey := elem.log.encryptionKey
+			if enckey == nil {
+				enckey = globalEncryptor.key
+			}
+			elem.log.em.Unlock()
+			globalEncryptor.m.Unlock()
+
+			if enckey != nil {
+				ret, err := enckey.EncryptString(str)
+				if err == nil {
+					str = string(ret)
+				}
+			}
+
+			str = str + "\n"
 
 			elem.log.log.Print(str)
 
@@ -425,4 +448,35 @@ func HandlePanic() {
 //автоматически создает и возвращает логгер на файл с заданным суффиксом
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
+}
+
+type globalEncrypt struct {
+	m   sync.Mutex
+	key *enc.KeyEncrypt
+}
+
+var globalEncryptor globalEncrypt
+
+func SetGlobalEncryption(key string) bool {
+	globalEncryptor.m.Lock()
+	defer globalEncryptor.m.Unlock()
+
+	k := enc.NewEncryptKey(key)
+	if k == nil {
+		return false
+	}
+	globalEncryptor.key = k
+	return true
+}
+
+func (l *Logger) SetEncryptionKey(key string) bool {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	k := enc.NewEncryptKey(key)
+	if k == nil {
+		return false
+	}
+	l.encryptionKey = k
+	return true
 }
