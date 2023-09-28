@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
+	"encoding/base64"
 	"flag"
 	"log"
 	"os"
@@ -43,7 +43,7 @@ func main() {
 
 	scanner := bufio.NewScanner(infile)
 	for scanner.Scan() {
-		bb, err := hex.DecodeString(scanner.Text())
+		bb, err := base64.RawStdEncoding.DecodeString(scanner.Text())
 		if err != nil {
 			continue
 		}

@@ -5,7 +5,7 @@ package zipologger
 */
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -86,7 +86,7 @@ func init() {
 			if enckey != nil {
 				ret, err := enckey.EncryptString(str)
 				if err == nil {
-					str = hex.EncodeToString(ret)
+					str = base64.RawStdEncoding.EncodeToString(ret)
 				}
 			}
 
