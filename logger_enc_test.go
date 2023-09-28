@@ -22,7 +22,6 @@ func Test_EncryptedLog(t *testing.T) {
 	logger = NewLogger("./logs/test.log", 1, 1, 1, true)
 
 	key := enc.NewKey()
-	log.Printf("enc key: %s\n", key.EncryptionKey())
 	log.Printf("dec key: %s\n", key.DecryptionKey())
 
 	logger.SetEncryptionKey(key.EncryptionKey())
@@ -31,8 +30,8 @@ func Test_EncryptedLog(t *testing.T) {
 		http.ListenAndServe(":9745", nil)
 	}()
 
-	logger.Print("test from main1\n")
-	logger.Print("second line \n")
-	logger.Print("third line \n")
+	logger.Print("test from main1")
+	logger.Print("second line ")
+	logger.Print("third line")
 	logger.Flush()
 }

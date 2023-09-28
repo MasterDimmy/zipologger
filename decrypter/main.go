@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/hex"
 	"flag"
 	"log"
 	"os"
@@ -42,11 +43,16 @@ func main() {
 
 	scanner := bufio.NewScanner(infile)
 	for scanner.Scan() {
-		b, err := decryptor.Decrypt(scanner.Bytes())
+		bb, err := hex.DecodeString(scanner.Text())
+		if err != nil {
+			continue
+		}
+		b, err := decryptor.Decrypt(bb)
 		if err != nil {
 			log.Fatalf("decryption error: %s\n", err.Error())
 			return
 		}
 		decfile.Write(b)
+		decfile.Write([]byte("\n"))
 	}
 }
