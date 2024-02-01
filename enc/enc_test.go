@@ -12,10 +12,10 @@ func Test_encrypt_decrypt(t *testing.T) {
 	basicKey := NewKey()
 
 	encryptionKeyString := basicKey.EncryptionKey()
-	log.Printf("encryption string: %s\n", encryptionKeyString)
+	log.Printf("encryption key string: %s\n", encryptionKeyString)
 
 	decryptionKeyString := basicKey.DecryptionKey()
-	log.Printf("decryption string: %s\n", decryptionKeyString)
+	log.Printf("decryption key string: %s\n", decryptionKeyString)
 
 	text := "Hello world"
 
