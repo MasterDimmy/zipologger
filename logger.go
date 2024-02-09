@@ -66,7 +66,8 @@ func init() {
 			str := elem.msg
 
 			for strings.HasSuffix(str, "\n") {
-				str, _ = strings.CutSuffix(str, "\n")
+				//str, _ = strings.CutSuffix(str, "\n")
+				str, _ , _ = strings.Cut(str, "\n")
 			}
 
 			globalEncryptor.m.Lock()
