@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-var logger *Logger
-
 func Test_writelog(t *testing.T) {
 	defer Wait()
 

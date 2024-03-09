@@ -59,9 +59,11 @@ func init() {
 
 		//remove parallel write due to order breaking
 		for elem := range tolog_ch {
+			elem.log.em.Lock()
 			if elem.log.log == nil { //create file to be written
 				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
 			}
+			elem.log.em.Unlock()
 
 			str := elem.msg
 
@@ -132,17 +134,12 @@ func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var closing_log_files sync.WaitGroup
-var inited_loggers, _ = lru.NewWithEvict(100, func(key interface{}, value interface{}) {
+var inited_loggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
 	log := value.(*Logger)
 
-	closing_log_files.Add(1)
-	go func() {
-		defer closing_log_files.Done()
-		if log.zlog != nil {
-			log.zlog.Close()
-		}
-	}()
+	if log!=nil && log.zlog != nil {
+		log.zlog.Close()
+	}
 })
 var newLogger_mutex sync.Mutex
 
@@ -186,7 +183,6 @@ func Wait() {
 			logger.Wait()
 		}
 	}
-	closing_log_files.Wait()
 }
 
 func (l *Logger) Writer() io.Writer {

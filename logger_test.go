@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-var logger *Logger
-
 func subFunc(a string) {
 	logger.Print("test from subFunc: " + a)
 }
