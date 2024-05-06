@@ -6,7 +6,7 @@ require (
 	github.com/MasterDimmy/errorcatcher v0.1.0
 	github.com/MasterDimmy/golang-lruexpire v0.2.3
 	github.com/MasterDimmy/zilorot v0.0.4
-	github.com/ethereum/go-ethereum v1.13.14
+	github.com/ethereum/go-ethereum v1.13.15
 )
 
 require (
