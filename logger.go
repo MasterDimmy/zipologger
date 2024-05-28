@@ -52,7 +52,7 @@ type Logger struct {
 
 var tolog_ch = make(chan *logger_message, 1000)
 
-//order and log to the file
+// order and log to the file
 func init() {
 	go func() {
 		defer HandlePanic()
@@ -69,7 +69,7 @@ func init() {
 
 			for strings.HasSuffix(str, "\n") {
 				//str, _ = strings.CutSuffix(str, "\n")
-				str, _ , _ = strings.Cut(str, "\n")
+				str, _, _ = strings.Cut(str, "\n")
 			}
 
 			globalEncryptor.m.Lock()
@@ -97,7 +97,7 @@ func init() {
 	}()
 }
 
-//you can set Logger to this to write nowhere
+// you can set Logger to this to write nowhere
 var EmptyLogger = func() *Logger {
 	nowhere := &log.Logger{}
 	nowhere.SetOutput(ioutil.Discard)
@@ -137,7 +137,8 @@ func SetAlsoToStdout(b bool) {
 var inited_loggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
 	log := value.(*Logger)
 
-	if log!=nil && log.zlog != nil {
+	if log != nil && log.zlog != nil {
+		log.Flush()
 		log.zlog.Close()
 	}
 })
@@ -170,7 +171,7 @@ func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age
 	return log
 }
 
-//делает flush
+// делает flush
 var w_mutex sync.Mutex
 
 func Wait() {
@@ -197,7 +198,7 @@ func (l *Logger) Flush() {
 	l.Wait()
 }
 
-//waiting till all will be written
+// waiting till all will be written
 func (l *Logger) Wait() {
 	l.m.Lock()
 	defer l.m.Unlock()
@@ -318,7 +319,7 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	return l.print(fmt.Sprintf(format, w3...))
 }
 
-//prints format not often then diration time per printid
+// prints format not often then diration time per printid
 func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format string, w1 interface{}, w2 ...interface{}) {
 	old, ok := l.limited_print.Get(printid)
 	if ok {
@@ -363,7 +364,7 @@ func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {
 
 var panic_mutex sync.Mutex
 
-//intercept panics and save it to file
+// intercept panics and save it to file
 func HandlePanicLog(err_log *Logger, e interface{}) string {
 	panic_mutex.Lock()
 	defer panic_mutex.Unlock()
@@ -439,4 +440,3 @@ func HandlePanic() {
 func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
 	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
 }
-
