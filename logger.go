@@ -312,9 +312,7 @@ func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string
 	var w3 []interface{}
 	w3 = append(w3, w1)
 	if len(w2) > 0 {
-		for _, v := range w2 {
-			w3 = append(w3, v)
-		}
+		w3 = append(w3, w2...)
 	}
 
 	return l.print(fmt.Sprintf(format, w3...))
