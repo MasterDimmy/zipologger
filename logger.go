@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,62 +13,67 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/MasterDimmy/zipologger/enc"
-
 	"github.com/MasterDimmy/errorcatcher"
 	"github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
+	"github.com/MasterDimmy/zipologger/enc"
 )
 
-type logger_message struct {
+type loggerMessage struct {
 	msg string
 	log *Logger
 }
 
 type Logger struct {
-	log          *log.Logger
-	zlog         *zilorot.Logger
-	wait_started int32
-	m            sync.Mutex
-
-	em            sync.Mutex
-	encryptionKey *enc.KeyEncrypt
-
-	filename           string
-	log_max_size_in_mb int
-	max_backups        int
-	max_age_in_days    int
-
-	alsoToStdout bool
-
-	log_tasks sync.WaitGroup
-
-	limited_print *lru.Cache //printid - unixitime
-
-	logDateTime   bool
-	logSourcePath bool
+	log            *log.Logger
+	zlog           *zilorot.Logger
+	waitStarted    int32
+	m              sync.Mutex
+	em             sync.Mutex
+	encryptionKey  *enc.KeyEncrypt
+	filename       string
+	logMaxSizeInMB int
+	maxBackups     int
+	maxAgeInDays   int
+	alsoToStdout   bool
+	logTasks       sync.WaitGroup
+	limitedPrint   *lru.Cache //printid - unixitime
+	logDateTime    bool
+	logSourcePath  bool
 }
 
-var tolog_ch = make(chan *logger_message, 1000)
+var (
+	tologCh        = make(chan *loggerMessage, 1000)
+	alsoToStdout   bool
+	initedLoggers  *lru.Cache
+	newLoggerMutex sync.Mutex
+	panicMutex     sync.Mutex
+	wMutex         sync.Mutex
+)
 
-// order and log to the file
 func init() {
+	initedLoggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
+		log := value.(*Logger)
+		if log != nil && log.zlog != nil {
+			log.Flush()
+			log.zlog.Close()
+		}
+	})
+
 	go func() {
 		defer HandlePanic()
 
-		//remove parallel write due to order breaking
-		for elem := range tolog_ch {
+		for elem := range tologCh {
 			elem.log.em.Lock()
-			if elem.log.log == nil { //create file to be written
-				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.log_max_size_in_mb, elem.log.max_backups, elem.log.max_age_in_days)
+			if elem.log.log == nil {
+				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
 			}
 			elem.log.em.Unlock()
 
 			str := elem.msg
 
 			for strings.HasSuffix(str, "\n") {
-				//str, _ = strings.CutSuffix(str, "\n")
-				str, _, _ = strings.Cut(str, "\n")
+				str = strings.TrimSuffix(str, "\n")
 			}
 
 			globalEncryptor.m.Lock()
@@ -89,18 +93,16 @@ func init() {
 			}
 
 			str = str + "\n"
-
 			elem.log.log.Print(str)
-
-			elem.log.log_tasks.Done()
+			elem.log.logTasks.Done()
 		}
 	}()
 }
 
-// you can set Logger to this to write nowhere
+// EmptyLogger is a logger that writes nowhere
 var EmptyLogger = func() *Logger {
 	nowhere := &log.Logger{}
-	nowhere.SetOutput(ioutil.Discard)
+	nowhere.SetOutput(io.Discard)
 	return &Logger{
 		log:      nowhere,
 		filename: "",
@@ -128,57 +130,42 @@ func (l *Logger) SetAlsoToStdout(b bool) *Logger {
 	return l
 }
 
-var alsoToStdout bool
-
 func SetAlsoToStdout(b bool) {
 	alsoToStdout = b
 }
 
-var inited_loggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
-	log := value.(*Logger)
+func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int, writeFileline bool) *Logger {
+	newLoggerMutex.Lock()
+	defer newLoggerMutex.Unlock()
 
-	if log != nil && log.zlog != nil {
-		log.Flush()
-		log.zlog.Close()
-	}
-})
-var newLogger_mutex sync.Mutex
-
-func NewLogger(filename string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_fileline bool) *Logger {
-	newLogger_mutex.Lock()
-	defer newLogger_mutex.Unlock()
-
-	logger, ok := inited_loggers.Get(filename)
+	logger, ok := initedLoggers.Get(filename)
 	if ok {
-		inited_loggers.Add(filename, logger)
+		initedLoggers.Add(filename, logger)
 		return logger.(*Logger)
 	}
 
 	p := filepath.Dir(filename)
-	os.MkdirAll(p, 0644)
+	os.MkdirAll(p, 0755)
 	l, _ := lru.New(1000)
 	log := &Logger{
-		filename:           filename,
-		log_max_size_in_mb: log_max_size_in_mb,
-		max_backups:        max_backups,
-		max_age_in_days:    max_age_in_days,
-		logSourcePath:      write_fileline,
-		limited_print:      l,
-		logDateTime:        true,
+		filename:       filename,
+		logMaxSizeInMB: logMaxSizeInMB,
+		maxBackups:     maxBackups,
+		maxAgeInDays:   maxAgeInDays,
+		logSourcePath:  writeFileline,
+		limitedPrint:   l,
+		logDateTime:    true,
 	}
 
-	inited_loggers.Add(filename, log)
+	initedLoggers.Add(filename, log)
 	return log
 }
 
-// делает flush
-var w_mutex sync.Mutex
-
 func Wait() {
-	w_mutex.Lock()
-	defer w_mutex.Unlock()
-	for _, w := range inited_loggers.Keys() {
-		log, ok := inited_loggers.Get(w)
+	wMutex.Lock()
+	defer wMutex.Unlock()
+	for _, w := range initedLoggers.Keys() {
+		log, ok := initedLoggers.Get(w)
 		if ok {
 			logger := log.(*Logger)
 			logger.Wait()
@@ -189,57 +176,55 @@ func Wait() {
 func (l *Logger) Writer() io.Writer {
 	if l.log != nil {
 		return l.log.Writer()
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (l *Logger) Flush() {
 	l.Wait()
 }
 
-// waiting till all will be written
 func (l *Logger) Wait() {
 	l.m.Lock()
 	defer l.m.Unlock()
-	atomic.StoreInt32(&l.wait_started, 1)
-	l.log_tasks.Wait()
-	atomic.StoreInt32(&l.wait_started, 0)
+	atomic.StoreInt32(&l.waitStarted, 1)
+	l.logTasks.Wait()
+	atomic.StoreInt32(&l.waitStarted, 0)
 }
 
-var start_caller_depth int
-var max_caller_depth = 7
-var additional_caller_depth_m sync.Mutex
+var startCallerDepth int
+var maxCallerDepth = 7
+var additionalCallerDepthM sync.Mutex
 
 func SetStartCallerDepth(a int) {
-	additional_caller_depth_m.Lock()
-	defer additional_caller_depth_m.Unlock()
-	start_caller_depth = a
+	additionalCallerDepthM.Lock()
+	defer additionalCallerDepthM.Unlock()
+	startCallerDepth = a
 }
 
 func GetStartCallerDepth() int {
-	additional_caller_depth_m.Lock()
-	defer additional_caller_depth_m.Unlock()
-	return start_caller_depth
+	additionalCallerDepthM.Lock()
+	defer additionalCallerDepthM.Unlock()
+	return startCallerDepth
 }
 
 func SetMaxCallerDepth(a int) {
-	additional_caller_depth_m.Lock()
-	defer additional_caller_depth_m.Unlock()
-	max_caller_depth = a
+	additionalCallerDepthM.Lock()
+	defer additionalCallerDepthM.Unlock()
+	maxCallerDepth = a
 }
 
 func GetMaxCallerDepth() int {
-	additional_caller_depth_m.Lock()
-	defer additional_caller_depth_m.Unlock()
-	return max_caller_depth
+	additionalCallerDepthM.Lock()
+	defer additionalCallerDepthM.Unlock()
+	return maxCallerDepth
 }
 
 func formatCaller(add int) string {
 	ret := ""
 	previous := ""
 	for i := GetMaxCallerDepth() + add; i >= 3+add; i-- {
-		_, file, line, ok := runtime.Caller(i) //0 call
+		_, file, line, ok := runtime.Caller(i)
 		if !ok {
 			file = "???"
 			line = 0
@@ -264,7 +249,6 @@ func formatCaller(add int) string {
 		}
 	}
 
-	//глубже ничего нет
 	if len(ret) < 3 && add > 0 {
 		ret = formatCaller(0)
 	} else {
@@ -279,7 +263,7 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(msg string) string {
-	if atomic.LoadInt32(&l.wait_started) > 0 { //forbid add if wait called!
+	if atomic.LoadInt32(&l.waitStarted) > 0 {
 		return msg
 	}
 
@@ -291,10 +275,10 @@ func (l *Logger) print(msg string) string {
 		msg = time.Now().Format("2006/01/02 15:04:05 ") + msg
 	}
 
-	l.log_tasks.Add(1)
+	l.logTasks.Add(1)
 
-	tolog_ch <- &logger_message{
-		msg: msg, //1 call
+	tologCh <- &loggerMessage{
+		msg: msg,
 		log: l,
 	}
 
@@ -310,25 +294,19 @@ func (l *Logger) Print(format string) string {
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
-	var w3 []interface{}
-	w3 = append(w3, w1)
-	if len(w2) > 0 {
-		w3 = append(w3, w2...)
-	}
-
+	w3 := append([]interface{}{w1}, w2...)
 	return l.print(fmt.Sprintf(format, w3...))
 }
 
-// prints format not often then diration time per printid
 func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format string, w1 interface{}, w2 ...interface{}) {
-	old, ok := l.limited_print.Get(printid)
+	old, ok := l.limitedPrint.Get(printid)
 	if ok {
-		old_v := old.(time.Time)
-		if time.Since(old_v) < duration {
+		oldV := old.(time.Time)
+		if time.Since(oldV) < duration {
 			return
 		}
 	}
-	l.limited_print.Add(printid, time.Now())
+	l.limitedPrint.Add(printid, time.Now())
 	l.printf(format, w1, w2...)
 }
 
@@ -345,14 +323,8 @@ func (l *Logger) Println(w ...interface{}) string {
 	case 2:
 		return l.printf("%v %v\n", w[0], w[1])
 	default:
-		tail := ""
-		for _ = range w {
-			tail += "%v "
-		}
-		if len(tail) > 0 {
-			tail = tail[:len(tail)-1]
-		}
-		return l.printf(tail+"\n", w[0], w[1:]...)
+		tail := strings.Repeat("%v ", len(w))
+		return l.printf(tail[:len(tail)-1]+"\n", w[0], w[1:]...)
 	}
 }
 
@@ -362,21 +334,17 @@ func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {
 	panic(ret)
 }
 
-var panic_mutex sync.Mutex
-
-// intercept panics and save it to file
-func HandlePanicLog(err_log *Logger, e interface{}) string {
-	panic_mutex.Lock()
-	defer panic_mutex.Unlock()
+func HandlePanicLog(errLog *Logger, e interface{}) string {
+	panicMutex.Lock()
+	defer panicMutex.Unlock()
 	str := savePanicToFile(fmt.Sprintf("%s", e))
 	fmt.Printf("PANIC: %s\n", str)
-	if err_log != nil {
-		err_log.Printf("PANIC: %s\n", e)
+	if errLog != nil {
+		errLog.Printf("PANIC: %s\n", e)
 	}
 	return str
 }
 
-// Current stack dump
 func Stack() string {
 	b := make([]byte, 1<<16)
 	written := runtime.Stack(b, true)
@@ -398,7 +366,7 @@ func savePanicToFile(pdesc string) string {
 	return ""
 }
 
-func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_days int) (*log.Logger, *zilorot.Logger) {
+func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger) {
 	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 
 	if err != nil {
@@ -412,9 +380,9 @@ func newLogger(name string, log_max_size_in_mb int, max_backups int, max_age_in_
 	if logg != nil {
 		output = &zilorot.Logger{
 			Filename:   name,
-			MaxSize:    log_max_size_in_mb, // megabytes
-			MaxBackups: max_backups,
-			MaxAge:     max_age_in_days, //days
+			MaxSize:    logMaxSizeInMB,
+			MaxBackups: maxBackups,
+			MaxAge:     maxAgeInDays,
 		}
 		logg.SetOutput(output)
 	}
@@ -437,6 +405,6 @@ func HandlePanic() {
 	}
 }
 
-func GetLoggerBySuffix(suffix string, name string, log_max_size_in_mb int, max_backups int, max_age_in_days int, write_source bool) *Logger {
-	return NewLogger(name+suffix, log_max_size_in_mb, max_backups, max_age_in_days, write_source)
+func GetLoggerBySuffix(suffix string, name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int, writeSource bool) *Logger {
+	return NewLogger(name+suffix, logMaxSizeInMB, maxBackups, maxAgeInDays, writeSource)
 }
