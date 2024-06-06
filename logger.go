@@ -63,38 +63,43 @@ func init() {
 	go func() {
 		defer HandlePanic()
 
-		for elem := range tologCh {
-			elem.log.em.Lock()
-			if elem.log.log == nil {
-				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
-			}
-			elem.log.em.Unlock()
-
-			str := elem.msg
-
-			for strings.HasSuffix(str, "\n") {
-				str = strings.TrimSuffix(str, "\n")
-			}
-
-			globalEncryptor.m.Lock()
-			elem.log.em.Lock()
-			enckey := elem.log.encryptionKey
-			if enckey == nil {
-				enckey = globalEncryptor.key
-			}
-			elem.log.em.Unlock()
-			globalEncryptor.m.Unlock()
-
-			if enckey != nil {
-				ret, err := enckey.EncryptString(str)
-				if err == nil {
-					str = base64.RawStdEncoding.EncodeToString(ret)
+		for {
+			select {
+			case elem := <-tologCh:
+				elem.log.em.Lock()
+				if elem.log.log == nil {
+					elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
 				}
-			}
+				elem.log.em.Unlock()
 
-			str = str + "\n"
-			elem.log.log.Print(str)
-			elem.log.logTasks.Done()
+				str := elem.msg
+
+				for strings.HasSuffix(str, "\n") {
+					str = strings.TrimSuffix(str, "\n")
+				}
+
+				globalEncryptor.m.Lock()
+				elem.log.em.Lock()
+				enckey := elem.log.encryptionKey
+				if enckey == nil {
+					enckey = globalEncryptor.key
+				}
+				elem.log.em.Unlock()
+				globalEncryptor.m.Unlock()
+
+				if enckey != nil {
+					ret, err := enckey.EncryptString(str)
+					if err == nil {
+						str = base64.RawStdEncoding.EncodeToString(ret)
+					}
+				}
+
+				str = str + "\n"
+				elem.log.log.Print(str)
+				elem.log.logTasks.Done()
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
 		}
 	}()
 }
