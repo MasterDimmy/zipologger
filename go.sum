@@ -1,11 +1,9 @@
 github.com/MasterDimmy/errorcatcher v0.1.0 h1:BEPtLEOs0rwA5UKUxA7lFLIeWQ8w/sVraVZzSHM/BI4=
 github.com/MasterDimmy/errorcatcher v0.1.0/go.mod h1:FukOdzRhzYAK+43bw8SeujbsDmrMLUCtNDGBZzT1pbc=
-github.com/MasterDimmy/fastime v0.0.1 h1:ZcKNaJjzE4399JYRzUImc2GRNkgIInwLihAIfRMbe/s=
-github.com/MasterDimmy/fastime v0.0.1/go.mod h1:2OuPwwfDiu1NbzxfOU8aOplRGh3DcKNXF2jqhz068ug=
 github.com/MasterDimmy/golang-lruexpire v0.2.3 h1:Xa00A2Xqus1TehMKRX5vo/YdZQP8cRN3Hv8I+vBH7pQ=
 github.com/MasterDimmy/golang-lruexpire v0.2.3/go.mod h1:ppQ+uHVKNJ2BiS8ayeCQ1Td+lI2rJl4pSyDno3j2bDA=
-github.com/MasterDimmy/zilorot v0.0.4 h1:IXceFcdnK3hvO7nXqnbs/E6RWGR317ynDDaRY/+pgJI=
-github.com/MasterDimmy/zilorot v0.0.4/go.mod h1:kNZPKzjeBmIeJArHc0clNCl50gm7rZw6GiEi0lz5UVo=
+github.com/MasterDimmy/zilorot v0.0.5 h1:WnaUKQxH1WbLAZwArudk/1/9wAQDWkHGMnvc94iZj6s=
+github.com/MasterDimmy/zilorot v0.0.5/go.mod h1:68mFHATUmWbphdb8VjhBkC+4FcWxQWlWnR77+q+UZBw=
 github.com/btcsuite/btcd/btcec/v2 v2.3.3 h1:6+iXlDKE8RMtKsvK0gshlXIuPbyWM/h84Ensb7o3sC0=
 github.com/btcsuite/btcd/btcec/v2 v2.3.3/go.mod h1:zYzJ8etWJQIv1Ogk7OzpWjowwOdXY1W/17j2MW85J04=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=
