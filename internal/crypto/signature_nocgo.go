@@ -67,37 +67,6 @@ func SigToPub(hash, sig []byte) (*ecdsa.PublicKey, error) {
 	}, nil
 }
 
-// Sign calculates an ECDSA signature.
-//
-// This function is susceptible to chosen plaintext attacks that can leak
-// information about the private key that is used for signing. Callers must
-// be aware that the given hash cannot be chosen by an adversary. Common
-// solution is to hash any input before calculating the signature.
-//
-// The produced signature is in the [R || S || V] format where V is 0 or 1.
-func Sign(hash []byte, prv *ecdsa.PrivateKey) ([]byte, error) {
-	if len(hash) != 32 {
-		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
-	}
-	if prv.Curve != S256() {
-		return nil, errors.New("private key curve is not secp256k1")
-	}
-	// ecdsa.PrivateKey -> btcec.PrivateKey
-	var priv btcec.PrivateKey
-	if overflow := priv.Key.SetByteSlice(prv.D.Bytes()); overflow || priv.Key.IsZero() {
-		return nil, errors.New("invalid private key")
-	}
-	defer priv.Zero()
-	sig, err := btc_ecdsa.SignCompact(&priv, hash, false) // ref uncompressed pubkey
-	if err != nil {
-		return nil, err
-	}
-	// Convert to Ethereum signature format with 'recovery id' v at the end.
-	v := sig[0] - 27
-	copy(sig, sig[1:])
-	sig[RecoveryIDOffset] = v
-	return sig, nil
-}
 
 // VerifySignature checks that the given public key created signature over hash.
 // The public key should be in compressed (33 bytes) or uncompressed (65 bytes) format.
