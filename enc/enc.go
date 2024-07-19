@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/MasterDimmy/zipologger/internal/crypto"
+	"github.com/MasterDimmy/zipologger/internal/crypto/ecies"
 )
 
 type KeyEncrypt struct {
