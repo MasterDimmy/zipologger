@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
-	"github.com/MasterDimmy/golang-lruexpire"
+	lru "github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
 	"github.com/MasterDimmy/zipologger/enc"
 )
@@ -171,6 +171,10 @@ func Wait() {
 			logger.Wait()
 		}
 	}
+}
+
+func (l *Logger) GetFileName() string {
+	return l.filename
 }
 
 func (l *Logger) Writer() io.Writer {
