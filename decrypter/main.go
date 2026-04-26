@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/base64"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -15,6 +16,8 @@ func main() {
 	key := flag.String("key", "", "decryption key string")
 
 	flag.Parse()
+
+	fmt.Printf("key=%s f=%s\n", *key, *file)
 
 	if *file == "" || len(*key) < 10 {
 		flag.Usage()

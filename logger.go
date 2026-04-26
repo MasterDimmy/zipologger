@@ -43,16 +43,16 @@ type Logger struct {
 }
 
 var (
-	tologCh        = make(chan *loggerMessage, 1000)
-	alsoToStdout   bool
-	initedLoggers  *lru.Cache
-	newLoggerMutex sync.Mutex
-	panicMutex     sync.Mutex
-	wMutex         sync.Mutex
+	tologCh            = make(chan *loggerMessage, 1000)
+	alsoToStdout       bool
+	initializedLoggers *lru.Cache
+	newLoggerMutex     sync.Mutex
+	panicMutex         sync.Mutex
+	wMutex             sync.Mutex
 )
 
 func init() {
-	initedLoggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
+	initializedLoggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
 		log := value.(*Logger)
 		if log != nil && log.zlog != nil {
 			log.Flush()
@@ -101,12 +101,7 @@ func init() {
 
 // EmptyLogger is a logger that writes nowhere
 var EmptyLogger = func() *Logger {
-	nowhere := &log.Logger{}
-	nowhere.SetOutput(io.Discard)
-	return &Logger{
-		log:      nowhere,
-		filename: "",
-	}
+	return &Logger{}
 }()
 
 func (l *Logger) WriteSourcePath(b bool) *Logger {
@@ -138,9 +133,9 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 	newLoggerMutex.Lock()
 	defer newLoggerMutex.Unlock()
 
-	logger, ok := initedLoggers.Get(filename)
+	logger, ok := initializedLoggers.Get(filename)
 	if ok {
-		initedLoggers.Add(filename, logger)
+		initializedLoggers.Add(filename, logger)
 		return logger.(*Logger)
 	}
 
@@ -157,15 +152,15 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 		logDateTime:    true,
 	}
 
-	initedLoggers.Add(filename, log)
+	initializedLoggers.Add(filename, log)
 	return log
 }
 
 func Wait() {
 	wMutex.Lock()
 	defer wMutex.Unlock()
-	for _, w := range initedLoggers.Keys() {
-		log, ok := initedLoggers.Get(w)
+	for _, w := range initializedLoggers.Keys() {
+		log, ok := initializedLoggers.Get(w)
 		if ok {
 			logger := log.(*Logger)
 			logger.Wait()
@@ -281,13 +276,15 @@ func (l *Logger) print(msg string) string {
 
 	l.logTasks.Add(1)
 
-	tologCh <- &loggerMessage{
-		msg: msg,
-		log: l,
-	}
-
 	if alsoToStdout || l.alsoToStdout {
 		fmt.Println(msg)
+	}
+
+	if l.log != nil {
+		tologCh <- &loggerMessage{
+			msg: msg,
+			log: l,
+		}
 	}
 
 	return msg
@@ -371,7 +368,7 @@ func savePanicToFile(pdesc string) string {
 }
 
 func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger) {
-	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v", err))
@@ -399,7 +396,7 @@ var ErrorCatcher *errorcatcher.System
 func HandlePanic() {
 	if e := recover(); e != nil {
 		p := fmt.Sprintf("%v", e)
-		fmt.Printf(p)
+		fmt.Println(p)
 		sp := savePanicToFile(p)
 		if ErrorCatcher != nil {
 			ErrorCatcher.Send(sp)
