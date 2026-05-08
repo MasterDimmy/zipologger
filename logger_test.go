@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+var logger *Logger
+
 func subFunc(a string) {
 	logger.Print("test from subFunc: " + a)
 }
@@ -19,7 +21,7 @@ func Test_callerDepth(t *testing.T) {
 
 	SetAlsoToStdout(true)
 
-	logger = NewLogger("test", 1, 1, 1, true)
+	logger = NewLogger("./logs/test.log", 1, 1, 1, true)
 	logger.Print("test from main")
 
 	go func() {
@@ -64,8 +66,8 @@ func Test_2logger_by_suffix(t *testing.T) {
 	SetAlsoToStdout(false)
 
 	for i := 0; i < 10000; i++ {
-		l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, false)
-		l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
+	l1 := GetLoggerBySuffix("a.log", "./logs/test_", 1, 1, 1, false)
+	l2 := GetLoggerBySuffix("b.log", "./logs/test_", 1, 1, 1, false)
 
 		//t.Log("print 1")
 
@@ -97,7 +99,7 @@ func Test_2logger_by_suffix(t *testing.T) {
 func Test_CloseFiles(t *testing.T) {
 	defer Wait()
 
-	sw := GetLoggerBySuffix(fmt.Sprintf("123123.log"), "./logs/", 1, 1, 1, false)
+	sw := GetLoggerBySuffix(fmt.Sprintf("123123.log"), "./logs/test_", 1, 1, 1, false)
 	sw.Print("123123123")
 
 	Wait()
@@ -105,7 +107,7 @@ func Test_CloseFiles(t *testing.T) {
 	SetAlsoToStdout(false)
 
 	for i := 0; i < 100; i++ {
-		l1 := GetLoggerBySuffix(fmt.Sprintf("a_%d.log", i), "./logs/", 1, 1, 1, false)
+		l1 := GetLoggerBySuffix(fmt.Sprintf("a_%d.log", i), "./logs/test_", 1, 1, 1, false)
 		l1.Printf("%d a", i)
 	}
 

@@ -31,6 +31,7 @@ import (
 
 	"github.com/MasterDimmy/zipologger/internal/common"
 	"github.com/MasterDimmy/zipologger/internal/common/math"
+	"github.com/MasterDimmy/zipologger/internal/crypto/secp256k1"
 	"github.com/MasterDimmy/zipologger/internal/rlp"
 	"golang.org/x/crypto/sha3"
 )
@@ -142,7 +143,7 @@ func ToECDSAUnsafe(d []byte) *ecdsa.PrivateKey {
 // it can also accept legacy encodings (0 prefixes).
 func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 	priv := new(ecdsa.PrivateKey)
-	priv.PublicKey.Curve = S256()
+	priv.PublicKey.Curve = secp256k1.S256()
 	if strict && 8*len(d) != priv.Params().BitSize {
 		return nil, fmt.Errorf("invalid length, need %d bits", priv.Params().BitSize)
 	}
@@ -157,7 +158,7 @@ func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 		return nil, errors.New("invalid private key, zero or negative")
 	}
 
-	priv.PublicKey.X, priv.PublicKey.Y = S256().ScalarBaseMult(d)
+	priv.PublicKey.X, priv.PublicKey.Y = secp256k1.S256().ScalarBaseMult(d)
 	if priv.PublicKey.X == nil {
 		return nil, errors.New("invalid private key")
 	}
@@ -174,18 +175,18 @@ func FromECDSA(priv *ecdsa.PrivateKey) []byte {
 
 // UnmarshalPubkey converts bytes to a secp256k1 public key.
 func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
-	x, y := S256().Unmarshal(pub)
+	x, y := secp256k1.S256().Unmarshal(pub)
 	if x == nil {
 		return nil, errInvalidPubkey
 	}
-	return &ecdsa.PublicKey{Curve: S256(), X: x, Y: y}, nil
+	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}, nil
 }
 
 func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
 	}
-	return S256().Marshal(pub.X, pub.Y)
+	return secp256k1.S256().Marshal(pub.X, pub.Y)
 }
 
 // HexToECDSA parses a secp256k1 private key.
@@ -263,7 +264,7 @@ func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 
 // GenerateKey generates a new private key.
 func GenerateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(S256(), rand.Reader)
+	return ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with

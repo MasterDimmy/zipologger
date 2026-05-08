@@ -27,8 +27,8 @@ func Test_wait(t *testing.T) {
 
 	remove_logs()
 
-	l1 := GetLoggerBySuffix("a.log", "./logs/", 1, 1, 1, false)
-	l2 := GetLoggerBySuffix("b.log", "./logs/", 1, 1, 1, false)
+	l1 := GetLoggerBySuffix("a.log", "./logs/test_", 1, 1, 1, false)
+	l2 := GetLoggerBySuffix("b.log", "./logs/test_", 1, 1, 1, false)
 
 	l1.Wait()
 	l1.Wait()

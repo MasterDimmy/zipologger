@@ -1,7 +1,6 @@
 package zipologger
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -16,7 +15,6 @@ import (
 	"github.com/MasterDimmy/errorcatcher"
 	lru "github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
-	"github.com/MasterDimmy/zipologger/enc"
 )
 
 type loggerMessage struct {
@@ -27,10 +25,10 @@ type loggerMessage struct {
 type Logger struct {
 	log            *log.Logger
 	zlog           *zilorot.Logger
+	file           *os.File // Track the underlying file handle for proper cleanup
 	waitStarted    int32
 	m              sync.Mutex
 	em             sync.Mutex
-	encryptionKey  *enc.KeyEncrypt
 	filename       string
 	logMaxSizeInMB int
 	maxBackups     int
@@ -53,10 +51,18 @@ var (
 
 func init() {
 	initializedLoggers, _ = lru.NewWithEvict(1000, func(key interface{}, value interface{}) {
+		if value == nil {
+			return
+		}
 		log := value.(*Logger)
-		if log != nil && log.zlog != nil {
+		if log != nil {
 			log.Flush()
-			log.zlog.Close()
+			if log.zlog != nil {
+				log.zlog.Close()
+			}
+			if log.file != nil {
+				log.file.Close()
+			}
 		}
 	})
 
@@ -66,7 +72,13 @@ func init() {
 		for elem := range tologCh {
 			elem.log.em.Lock()
 			if elem.log.log == nil {
-				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
+				elem.log.log, elem.log.zlog, elem.log.file = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
+				if elem.log.log == nil {
+					// Failed to create logger, skip this message
+					elem.log.em.Unlock()
+					elem.log.logTasks.Done()
+					continue
+				}
 			}
 			elem.log.em.Unlock()
 
@@ -74,22 +86,6 @@ func init() {
 
 			for strings.HasSuffix(str, "\n") {
 				str = strings.TrimSuffix(str, "\n")
-			}
-
-			globalEncryptor.m.Lock()
-			elem.log.em.Lock()
-			enckey := elem.log.encryptionKey
-			if enckey == nil {
-				enckey = globalEncryptor.key
-			}
-			elem.log.em.Unlock()
-			globalEncryptor.m.Unlock()
-
-			if enckey != nil {
-				ret, err := enckey.EncryptString(str)
-				if err == nil {
-					str = base64.RawStdEncoding.EncodeToString(ret)
-				}
 			}
 
 			str = str + "\n"
@@ -130,18 +126,33 @@ func SetAlsoToStdout(b bool) {
 }
 
 func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int, writeFileline bool) *Logger {
+	// First check without lock for performance (double-checked locking pattern)
+	if logger, ok := initializedLoggers.Get(filename); ok {
+		return logger.(*Logger)
+	}
+
 	newLoggerMutex.Lock()
 	defer newLoggerMutex.Unlock()
 
-	logger, ok := initializedLoggers.Get(filename)
-	if ok {
-		initializedLoggers.Add(filename, logger)
+	// Check again after acquiring lock
+	if logger, ok := initializedLoggers.Get(filename); ok {
 		return logger.(*Logger)
 	}
 
 	p := filepath.Dir(filename)
-	os.MkdirAll(p, 0755)
-	l, _ := lru.New(1000)
+	// Use platform-appropriate permissions
+	var perm os.FileMode = 0755
+	if runtime.GOOS == "windows" {
+		perm = 0777 // Windows doesn't use Unix permissions strictly
+	}
+	if err := os.MkdirAll(p, perm); err != nil {
+		// Log error but continue, file creation will fail later if directory doesn't exist
+		os.Stderr.WriteString(fmt.Sprintf("Warning: failed to create directory %s: %v\n", p, err))
+	}
+	
+	// Create LRU cache with expiration for limitedPrintf
+	l, _ := lru.NewWithExpire(1000, time.Hour*24) // Expire entries after 24 hours
+	
 	log := &Logger{
 		filename:       filename,
 		logMaxSizeInMB: logMaxSizeInMB,
@@ -159,11 +170,16 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 func Wait() {
 	wMutex.Lock()
 	defer wMutex.Unlock()
-	for _, w := range initializedLoggers.Keys() {
+	
+	// Get a snapshot of keys to avoid concurrent modification issues
+	keys := initializedLoggers.Keys()
+	for _, w := range keys {
 		log, ok := initializedLoggers.Get(w)
-		if ok {
+		if ok && log != nil {
 			logger := log.(*Logger)
-			logger.Wait()
+			if logger != nil {
+				logger.Wait()
+			}
 		}
 	}
 }
@@ -183,12 +199,38 @@ func (l *Logger) Flush() {
 	l.Wait()
 }
 
+// Close explicitly closes the logger's file handle and releases resources.
+// This is optional as resources are automatically cleaned up via LRU eviction,
+// but can be called explicitly for immediate cleanup.
+func (l *Logger) Close() error {
+	l.Wait()
+	
+	l.em.Lock()
+	defer l.em.Unlock()
+	
+	if l.file != nil {
+		err := l.file.Close()
+		l.file = nil
+		return err
+	}
+	return nil
+}
+
 func (l *Logger) Wait() {
 	l.m.Lock()
-	defer l.m.Unlock()
+	if atomic.LoadInt32(&l.waitStarted) == 1 {
+		// Already waiting, avoid double wait which could deadlock
+		l.m.Unlock()
+		return
+	}
 	atomic.StoreInt32(&l.waitStarted, 1)
+	l.m.Unlock()
+	
 	l.logTasks.Wait()
+	
+	l.m.Lock()
 	atomic.StoreInt32(&l.waitStarted, 0)
+	l.m.Unlock()
 }
 
 var startCallerDepth int
@@ -248,8 +290,12 @@ func formatCaller(add int) string {
 		}
 	}
 
-	if len(ret) < 3 && add > 0 {
-		ret = formatCaller(0)
+	if len(ret) < 3 {
+		if add > 0 {
+			ret = formatCaller(0)
+		} else {
+			ret = "unknown: "
+		}
 	} else {
 		ret = ret + ": "
 	}
@@ -262,6 +308,12 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(msg string) string {
+	// Early return for EmptyLogger - check if this is the global EmptyLogger instance
+	// or if all critical fields are zero values
+	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+		return msg
+	}
+
 	if atomic.LoadInt32(&l.waitStarted) > 0 {
 		return msg
 	}
@@ -281,9 +333,14 @@ func (l *Logger) print(msg string) string {
 	}
 
 	if l.log != nil {
-		tologCh <- &loggerMessage{
+		select {
+		case tologCh <- &loggerMessage{
 			msg: msg,
 			log: l,
+		}:
+		default:
+			// Channel is full, log to stderr as fallback
+			os.Stderr.WriteString("Logger channel full, dropping message: " + msg + "\n")
 		}
 	}
 
@@ -316,17 +373,10 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 }
 
 func (l *Logger) Println(w ...interface{}) string {
-	switch len(w) {
-	case 0:
-		return ""
-	case 1:
-		return l.printf("%v\n", w[0])
-	case 2:
-		return l.printf("%v %v\n", w[0], w[1])
-	default:
-		tail := strings.Repeat("%v ", len(w))
-		return l.printf(tail[:len(tail)-1]+"\n", w[0], w[1:]...)
+	if len(w) == 0 {
+		return l.print("")
 	}
+	return l.print(fmt.Sprintln(w...))
 }
 
 func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {
@@ -354,41 +404,45 @@ func Stack() string {
 
 func savePanicToFile(pdesc string) string {
 	st, _ := filepath.Abs(os.Args[0])
-	os.Mkdir("logs", 0777)
-	fn := filepath.Join(filepath.Dir(st), "logs/panic_"+filepath.Base(os.Args[0])+time.Now().Format("_2006-Jan-02_15")+".log")
-	f, e := os.Create(fn)
-	if e == nil {
-		defer f.Close()
-		_, file, line, _ := runtime.Caller(1)
-		str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
-		f.WriteString(str)
-		return str
+	logsDir := "logs"
+	// Use platform-appropriate permissions
+	var perm os.FileMode = 0777
+	if runtime.GOOS == "windows" {
+		perm = 0777
 	}
-	return ""
+	os.Mkdir(logsDir, perm)
+	fn := filepath.Join(filepath.Dir(st), logsDir, "panic_"+filepath.Base(os.Args[0])+time.Now().Format("_2006-Jan-02_15")+".log")
+	f, e := os.Create(fn)
+	if e != nil {
+		// Failed to create panic log file, return empty string
+		return ""
+	}
+	defer f.Close()
+	
+	_, file, line, _ := runtime.Caller(1)
+	str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
+	f.WriteString(str)
+	return str
 }
 
-func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger) {
+func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger, *os.File) {
 	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-
 	if err != nil {
-		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v", err))
-		os.Exit(1)
+		// Return nil values instead of exiting
+		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v\n", err))
+		return nil, nil, nil
 	}
+	
 	logg := log.New(e, "", 0)
-
-	var output *zilorot.Logger
-
-	if logg != nil {
-		output = &zilorot.Logger{
-			Filename:   name,
-			MaxSize:    logMaxSizeInMB,
-			MaxBackups: maxBackups,
-			MaxAge:     maxAgeInDays,
-		}
-		logg.SetOutput(output)
+	output := &zilorot.Logger{
+		Filename:   name,
+		MaxSize:    logMaxSizeInMB,
+		MaxBackups: maxBackups,
+		MaxAge:     maxAgeInDays,
 	}
+	logg.SetOutput(output)
 
-	return logg, output
+	return logg, output, e
 }
 
 var ErrorCatcher *errorcatcher.System
