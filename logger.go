@@ -1,6 +1,7 @@
 package zipologger
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"github.com/MasterDimmy/errorcatcher"
 	lru "github.com/MasterDimmy/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
+	"github.com/MasterDimmy/zipologger/enc"
 )
 
 type loggerMessage struct {
@@ -29,6 +31,7 @@ type Logger struct {
 	waitStarted    int32
 	m              sync.Mutex
 	em             sync.Mutex
+	encryptionKey  *enc.KeyEncrypt
 	filename       string
 	logMaxSizeInMB int
 	maxBackups     int
@@ -40,6 +43,11 @@ type Logger struct {
 	logSourcePath  bool
 }
 
+type globalEncryptorType struct {
+	m   sync.Mutex
+	key *enc.KeyEncrypt
+}
+
 var (
 	tologCh            = make(chan *loggerMessage, 1000)
 	alsoToStdout       bool
@@ -47,6 +55,7 @@ var (
 	newLoggerMutex     sync.Mutex
 	panicMutex         sync.Mutex
 	wMutex             sync.Mutex
+	mainGlobalEncryptor = &globalEncryptorType{}
 )
 
 func init() {
@@ -86,6 +95,22 @@ func init() {
 
 			for strings.HasSuffix(str, "\n") {
 				str = strings.TrimSuffix(str, "\n")
+			}
+
+			mainGlobalEncryptor.m.Lock()
+			elem.log.em.Lock()
+			enckey := elem.log.encryptionKey
+			if enckey == nil {
+				enckey = mainGlobalEncryptor.key
+			}
+			elem.log.em.Unlock()
+			mainGlobalEncryptor.m.Unlock()
+
+			if enckey != nil {
+				ret, err := enckey.EncryptString(str)
+				if err == nil {
+					str = base64.RawStdEncoding.EncodeToString(ret)
+				}
 			}
 
 			str = str + "\n"

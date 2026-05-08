@@ -6,14 +6,12 @@ import (
 	"time"
 )
 
-var logger *Logger
-
-func subFunc(a string) {
+func subFunc(a string, logger *Logger) {
 	logger.Print("test from subFunc: " + a)
 }
 
-func subFunc2() {
-	subFunc("c")
+func subFunc2(logger *Logger) {
+	subFunc("c", logger)
 }
 
 func Test_callerDepth(t *testing.T) {
@@ -21,21 +19,21 @@ func Test_callerDepth(t *testing.T) {
 
 	SetAlsoToStdout(true)
 
-	logger = NewLogger("./logs/test.log", 1, 1, 1, true)
+	logger := NewLogger("./logs/test.log", 1, 1, 1, true)
 	logger.Print("test from main")
 
 	go func() {
 		logger.Print("test from go func")
 	}()
 
-	subFunc("a")
+	subFunc("a", logger)
 
 	func() {
 		logger.Print("test from func ")
-		subFunc("b")
+		subFunc("b", logger)
 	}()
 
-	subFunc2()
+	subFunc2(logger)
 }
 
 func Test_println(t *testing.T) {

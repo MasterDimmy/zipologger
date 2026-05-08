@@ -1,7 +1,6 @@
 package zipologger
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -72,8 +71,8 @@ func TestLoggerPrintFunctions(t *testing.T) {
 	}
 	
 	// Test LimitedPrintf
-	logger.LimitedPrintf("test_id", time.Millisecond*10, "limited message")
-	logger.LimitedPrintf("test_id", time.Millisecond*10, "should be skipped")
+	logger.LimitedPrintf("test_id", time.Millisecond*10, "limited message %s", "test")
+	logger.LimitedPrintf("test_id", time.Millisecond*10, "should be skipped %s", "test")
 	// Can't easily test the skipping behavior without sleep, but it shouldn't panic
 }
 

@@ -1,7 +1,6 @@
 package zipologger
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
