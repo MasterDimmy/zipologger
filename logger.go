@@ -49,7 +49,7 @@ type globalEncryptorType struct {
 }
 
 var (
-	tologCh            = make(chan *loggerMessage, 1000)
+	tologCh            = make(chan *loggerMessage, 10000) // Increased buffer for testing
 	alsoToStdout       bool
 	initializedLoggers *lru.Cache
 	newLoggerMutex     sync.Mutex
@@ -357,16 +357,16 @@ func (l *Logger) print(msg string) string {
 		fmt.Println(msg)
 	}
 
-	if l.log != nil {
-		select {
-		case tologCh <- &loggerMessage{
-			msg: msg,
-			log: l,
-		}:
-		default:
-			// Channel is full, log to stderr as fallback
-			os.Stderr.WriteString("Logger channel full, dropping message: " + msg + "\n")
-		}
+	// Always send to channel - logger initialization happens in the goroutine
+	select {
+	case tologCh <- &loggerMessage{
+		msg: msg,
+		log: l,
+	}:
+	default:
+		// Channel is full, log to stderr as fallback
+		os.Stderr.WriteString("Logger channel full, dropping message: " + msg + "\n")
+		l.logTasks.Done() // Ensure WaitGroup is decremented even when dropping messages
 	}
 
 	return msg
@@ -399,7 +399,7 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 
 func (l *Logger) Println(w ...interface{}) string {
 	if len(w) == 0 {
-		return l.print("")
+		return "" // Match original behavior - don't log anything for empty Println
 	}
 	return l.print(fmt.Sprintln(w...))
 }

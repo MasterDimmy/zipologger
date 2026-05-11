@@ -25,6 +25,7 @@ func remove_logs() {
 func Test_wait(t *testing.T) {
 	SetAlsoToStdout(false)
 
+	os.MkdirAll("./logs", 0755)
 	remove_logs()
 
 	l1 := GetLoggerBySuffix("a.log", "./logs/test_", 1, 1, 1, false)
@@ -54,8 +55,8 @@ func Test_wait(t *testing.T) {
 		}
 	}
 
-	tf("./logs/a.log", 100)
-	tf("./logs/b.log", 100)
+	tf("./logs/test_a.log", 100)
+	tf("./logs/test_b.log", 100)
 
 	for i := 0; i < 100; i++ {
 		l2.Print("aaaa")
@@ -107,6 +108,6 @@ func Test_wait(t *testing.T) {
 
 	Wait()
 
-	tf("./logs/a.log", 500)
-	tf("./logs/b.log", 500)
+	tf("./logs/test_a.log", 500)
+	tf("./logs/test_b.log", 500)
 }

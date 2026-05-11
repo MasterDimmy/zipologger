@@ -1,7 +1,6 @@
 package zipologger
 
 import (
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -126,37 +125,5 @@ func TestGetLoggerBySuffix(t *testing.T) {
 	}
 }
 
-func cleanupTestLogs() {
-	logFiles := []string{
-		"./logs/test1.log",
-		"./logs/test2.log", 
-		"./logs/test_print.log",
-		"./logs/test_concurrent.log",
-		"./logs/test_flush.log",
-		"./logs/test_suffix.log",
-		"bench_print.log",
-		"bench_printf.log", 
-		"bench_println.log",
-		"bench_limited.log",
-	}
-	
-	for _, file := range logFiles {
-		os.Remove(file)
-	}
-	
-	// Remove logs directory if empty
-	os.Remove("./logs")
-}
 
-func TestMain(m *testing.M) {
-	// Ensure logs directory exists
-	os.MkdirAll("./logs", 0755)
-	
-	// Run tests
-	code := m.Run()
-	
-	// Cleanup
-	cleanupTestLogs()
-	
-	os.Exit(code)
-}
+
