@@ -49,12 +49,12 @@ type globalEncryptorType struct {
 }
 
 var (
-	tologCh            = make(chan *loggerMessage, 10000) // Increased buffer for testing
-	alsoToStdout       bool
-	initializedLoggers *lru.Cache
-	newLoggerMutex     sync.Mutex
-	panicMutex         sync.Mutex
-	wMutex             sync.Mutex
+	tologCh             = make(chan *loggerMessage, 10000) // Increased buffer for testing
+	alsoToStdout        bool
+	initializedLoggers  *lru.Cache
+	newLoggerMutex      sync.Mutex
+	panicMutex          sync.Mutex
+	wMutex              sync.Mutex
 	mainGlobalEncryptor = &globalEncryptorType{}
 )
 
@@ -174,10 +174,10 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 		// Log error but continue, file creation will fail later if directory doesn't exist
 		os.Stderr.WriteString(fmt.Sprintf("Warning: failed to create directory %s: %v\n", p, err))
 	}
-	
+
 	// Create LRU cache with expiration for limitedPrintf
 	l, _ := lru.NewWithExpire(1000, time.Hour*24) // Expire entries after 24 hours
-	
+
 	log := &Logger{
 		filename:       filename,
 		logMaxSizeInMB: logMaxSizeInMB,
@@ -195,7 +195,7 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 func Wait() {
 	wMutex.Lock()
 	defer wMutex.Unlock()
-	
+
 	// Get a snapshot of keys to avoid concurrent modification issues
 	keys := initializedLoggers.Keys()
 	for _, w := range keys {
@@ -229,10 +229,10 @@ func (l *Logger) Flush() {
 // but can be called explicitly for immediate cleanup.
 func (l *Logger) Close() error {
 	l.Wait()
-	
+
 	l.em.Lock()
 	defer l.em.Unlock()
-	
+
 	if l.file != nil {
 		err := l.file.Close()
 		l.file = nil
@@ -250,9 +250,9 @@ func (l *Logger) Wait() {
 	}
 	atomic.StoreInt32(&l.waitStarted, 1)
 	l.m.Unlock()
-	
+
 	l.logTasks.Wait()
-	
+
 	l.m.Lock()
 	atomic.StoreInt32(&l.waitStarted, 0)
 	l.m.Unlock()
@@ -333,12 +333,6 @@ func formatCaller(add int) string {
 }
 
 func (l *Logger) print(msg string) string {
-	// Early return for EmptyLogger - check if this is the global EmptyLogger instance
-	// or if all critical fields are zero values
-	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
-		return msg
-	}
-
 	if atomic.LoadInt32(&l.waitStarted) > 0 {
 		return msg
 	}
@@ -373,10 +367,18 @@ func (l *Logger) print(msg string) string {
 }
 
 func (l *Logger) Print(format string) string {
+	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+		return format
+	}
+
 	return l.print(format)
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
+	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+		return format
+	}
+
 	w3 := append([]interface{}{w1}, w2...)
 	return l.print(fmt.Sprintf(format, w3...))
 }
@@ -398,9 +400,10 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 }
 
 func (l *Logger) Println(w ...interface{}) string {
-	if len(w) == 0 {
-		return "" // Match original behavior - don't log anything for empty Println
+	if len(w) == 0 || l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+		return ""
 	}
+
 	return l.print(fmt.Sprintln(w...))
 }
 
@@ -443,7 +446,7 @@ func savePanicToFile(pdesc string) string {
 		return ""
 	}
 	defer f.Close()
-	
+
 	_, file, line, _ := runtime.Caller(1)
 	str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
 	f.WriteString(str)
@@ -457,7 +460,7 @@ func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int
 		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v\n", err))
 		return nil, nil, nil
 	}
-	
+
 	logg := log.New(e, "", 0)
 	output := &zilorot.Logger{
 		Filename:   name,
