@@ -332,6 +332,8 @@ func formatCaller(add int) string {
 	return ret
 }
 
+var dropAlert atomic.Bool
+
 func (l *Logger) print(msg string) string {
 	if atomic.LoadInt32(&l.waitStarted) > 0 {
 		return msg
@@ -359,7 +361,9 @@ func (l *Logger) print(msg string) string {
 	}:
 	default:
 		// Channel is full, log to stderr as fallback
-		os.Stderr.WriteString("Logger channel full, dropping message: " + msg + "\n")
+		if dropAlert.CompareAndSwap(false, true) {
+			os.Stderr.WriteString("Zipologger logger channel full, dropping messages!\n")
+		}
 		l.logTasks.Done() // Ensure WaitGroup is decremented even when dropping messages
 	}
 
