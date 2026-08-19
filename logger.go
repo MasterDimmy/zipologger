@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/MasterDimmy/errorcatcher"
-	lru "github.com/MasterDimmy/golang-lruexpire"
+	lru "github.com/goupdate/golang-lruexpire"
 	"github.com/MasterDimmy/zilorot"
 	"github.com/MasterDimmy/zipologger/enc"
 )
@@ -364,12 +364,13 @@ func (l *Logger) Print(format string) string {
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
-	if l == EmptyLogger || (l.filename == "" && 	l.log == nil && l.zlog == nil) {
-		return format
-	}
-
 	w3 := append([]interface{}{w1}, w2...)
-	return l.print(fmt.Sprintf(format, w3...))
+	formatted := fmt.Sprintf(format, w3...)
+	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil) {
+		// No-op logger: format for API consistency but do not write.
+		return formatted
+	}
+	return l.print(formatted)
 }
 
 func (l *Logger) LimitedPrintf(printid string, duration time.Duration, format string, w1 interface{}, w2 ...interface{}) {
@@ -389,11 +390,15 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 }
 
 func (l *Logger) Println(w ...interface{}) string {
-	if len(w) == 0 || l == EmptyLogger || (l.filename == "" && 	l.log == nil && l.zlog == nil) {
+	if len(w) == 0 {
 		return ""
 	}
-
-	return l.print(fmt.Sprintln(w...))
+	formatted := fmt.Sprintln(w...)
+	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil) {
+		// No-op logger: format for API consistency but do not write.
+		return formatted
+	}
+	return l.print(formatted)
 }
 
 func (l *Logger) Fatalf(format string, w1 interface{}, w2 ...interface{}) {

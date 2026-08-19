@@ -74,13 +74,12 @@ func Test_wait(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	for ii := 0; ii < 100; ii++ {
+		wg.Add(2)
 		go func(i int) {
-			wg.Add(1)
 			go func(j int) {
 				l1.Printf("[%d]", j)
 				l2.Printf("[%d]", j)
 				l1.Printf("[%d]", j)
-				wg.Add(1)
 				go func() {
 					l2.Println("zzzz")
 					wg.Done()
@@ -88,7 +87,6 @@ func Test_wait(t *testing.T) {
 				wg.Done()
 			}(i)
 		}(ii)
-
 	}
 
 	empty := EmptyLogger

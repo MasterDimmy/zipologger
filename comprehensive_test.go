@@ -209,16 +209,12 @@ func TestComprehensiveLoggerUsage(t *testing.T) {
 		logger.Flush()
 		logger.Wait()
 		
-		// Verify file doesn't exist or is empty (empty Println should not create log entries)
-		content, err := os.ReadFile("./logs/comprehensive_empty_println.log")
-		if err == nil {
-			// File exists but should be empty
-			if strings.TrimSpace(string(content)) != "" {
-				t.Error("Empty Println should not write content")
-			}
+		// Verify file contains both messages
+		content, err := os.ReadFile("./logs/comprehensive_double.log")
+		if err != nil {
+			t.Fatalf("Failed to read double log file: %v", err)
 		}
-		// If file doesn't exist, that's also correct behavior
-		
+
 		if !strings.Contains(string(content), "first message") {
 			t.Error("Missing first message")
 		}
