@@ -27,7 +27,6 @@ type loggerMessage struct {
 type Logger struct {
 	log            *log.Logger
 	zlog           *zilorot.Logger
-	file           *os.File // Track the underlying file handle for proper cleanup
 	waitStarted    int32
 	m              sync.Mutex
 	em             sync.Mutex
@@ -66,12 +65,9 @@ func init() {
 		log := value.(*Logger)
 		if log != nil {
 			log.Flush()
-			if log.zlog != nil {
-				log.zlog.Close()
-			}
-			if log.file != nil {
-				log.file.Close()
-			}
+		if log.zlog != nil {
+			log.zlog.Close()
+		}
 		}
 	})
 
@@ -81,7 +77,7 @@ func init() {
 		for elem := range tologCh {
 			elem.log.em.Lock()
 			if elem.log.log == nil {
-				elem.log.log, elem.log.zlog, elem.log.file = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
+				elem.log.log, elem.log.zlog = newLogger(elem.log.filename, elem.log.logMaxSizeInMB, elem.log.maxBackups, elem.log.maxAgeInDays)
 				if elem.log.log == nil {
 					// Failed to create logger, skip this message
 					elem.log.em.Unlock()
@@ -164,17 +160,6 @@ func NewLogger(filename string, logMaxSizeInMB int, maxBackups int, maxAgeInDays
 		return logger.(*Logger)
 	}
 
-	p := filepath.Dir(filename)
-	// Use platform-appropriate permissions
-	var perm os.FileMode = 0755
-	if runtime.GOOS == "windows" {
-		perm = 0777 // Windows doesn't use Unix permissions strictly
-	}
-	if err := os.MkdirAll(p, perm); err != nil {
-		// Log error but continue, file creation will fail later if directory doesn't exist
-		os.Stderr.WriteString(fmt.Sprintf("Warning: failed to create directory %s: %v\n", p, err))
-	}
-
 	// Create LRU cache with expiration for limitedPrintf
 	l, _ := lru.NewWithExpire(1000, time.Hour*24) // Expire entries after 24 hours
 
@@ -233,9 +218,9 @@ func (l *Logger) Close() error {
 	l.em.Lock()
 	defer l.em.Unlock()
 
-	if l.file != nil {
-		err := l.file.Close()
-		l.file = nil
+	if l.zlog != nil {
+		err := l.zlog.Close()
+		l.zlog = nil
 		return err
 	}
 	return nil
@@ -371,7 +356,7 @@ func (l *Logger) print(msg string) string {
 }
 
 func (l *Logger) Print(format string) string {
-	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+	if l == EmptyLogger || (l.filename == "" && 	l.log == nil && l.zlog == nil) {
 		return format
 	}
 
@@ -379,7 +364,7 @@ func (l *Logger) Print(format string) string {
 }
 
 func (l *Logger) printf(format string, w1 interface{}, w2 ...interface{}) string {
-	if l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+	if l == EmptyLogger || (l.filename == "" && 	l.log == nil && l.zlog == nil) {
 		return format
 	}
 
@@ -404,7 +389,7 @@ func (l *Logger) Printf(format string, w1 interface{}, w2 ...interface{}) string
 }
 
 func (l *Logger) Println(w ...interface{}) string {
-	if len(w) == 0 || l == EmptyLogger || (l.filename == "" && l.log == nil && l.zlog == nil && l.file == nil) {
+	if len(w) == 0 || l == EmptyLogger || (l.filename == "" && 	l.log == nil && l.zlog == nil) {
 		return ""
 	}
 
@@ -442,39 +427,60 @@ func savePanicToFile(pdesc string) string {
 	if runtime.GOOS == "windows" {
 		perm = 0777
 	}
-	os.Mkdir(logsDir, perm)
-	fn := filepath.Join(filepath.Dir(st), logsDir, "panic_"+filepath.Base(os.Args[0])+time.Now().Format("_2006-Jan-02_15")+".log")
-	f, e := os.Create(fn)
-	if e != nil {
-		// Failed to create panic log file, return empty string
-		return ""
-	}
-	defer f.Close()
 
-	_, file, line, _ := runtime.Caller(1)
-	str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
-	f.WriteString(str)
-	return str
+	// Prefer writing the panic log next to the executable. Fall back to the
+	// current working directory if the executable directory is unavailable or
+	// not writable (e.g. ephemeral build dirs), so the panic log is never
+	// silently lost.
+	candidates := []string{
+		filepath.Join(filepath.Dir(st), logsDir),
+		logsDir,
+	}
+	for _, targetDir := range candidates {
+		if err := os.MkdirAll(targetDir, perm); err != nil {
+			continue
+		}
+		fn := filepath.Join(targetDir, "panic_"+filepath.Base(os.Args[0])+time.Now().Format("_2006-Jan-02_15")+".log")
+		f, e := os.Create(fn)
+		if e != nil {
+			// Try the next candidate directory.
+			continue
+		}
+		defer f.Close()
+
+		_, file, line, _ := runtime.Caller(1)
+		str := fmt.Sprintf("Panic in [%s:%d] :\n", file, line) + pdesc + "\nSTACK:\n" + Stack()
+		f.WriteString(str)
+		return str
+	}
+	// Failed to create panic log file in any candidate directory.
+	return ""
 }
 
-func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger, *os.File) {
-	e, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		// Return nil values instead of exiting
-		os.Stderr.WriteString(fmt.Sprintf("error opening file: %v\n", err))
-		return nil, nil, nil
+func dirPerm() os.FileMode {
+	if runtime.GOOS == "windows" {
+		return 0777
+	}
+	return 0755
+}
+
+func newLogger(name string, logMaxSizeInMB int, maxBackups int, maxAgeInDays int) (*log.Logger, *zilorot.Logger) {
+	// Create the directory (including any parent subdirectories) lazily,
+	// only when the first write to this logger actually happens.
+	if err := os.MkdirAll(filepath.Dir(name), dirPerm()); err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("error creating directory %s: %v\n", filepath.Dir(name), err))
+		return nil, nil
 	}
 
-	logg := log.New(e, "", 0)
 	output := &zilorot.Logger{
 		Filename:   name,
 		MaxSize:    logMaxSizeInMB,
 		MaxBackups: maxBackups,
 		MaxAge:     maxAgeInDays,
 	}
-	logg.SetOutput(output)
+	logg := log.New(output, "", 0)
 
-	return logg, output, e
+	return logg, output
 }
 
 var ErrorCatcher *errorcatcher.System

@@ -15,6 +15,16 @@ var logger *Logger
 func Test_EncryptedLog(t *testing.T) {
 	defer Wait()
 
+	// Reset global state afterwards: SetGlobalEncryption now actually enables
+	// encryption for all loggers, and SetAlsoToStdout is package-global, so
+	// leaving them set would pollute later tests.
+	defer func() {
+		SetAlsoToStdout(false)
+		mainGlobalEncryptor.m.Lock()
+		mainGlobalEncryptor.key = nil
+		mainGlobalEncryptor.m.Unlock()
+	}()
+
 	go func() {
 		http.ListenAndServe(":9745", nil)
 	}()
@@ -28,7 +38,9 @@ func Test_EncryptedLog(t *testing.T) {
 	key := enc.NewKey()
 	log.Printf("dec key: %s\n", key.DecryptionKey())
 
-	logger.SetEncryptionKey(key.EncryptionKey())
+	if _, err := logger.SetEncryptionKey(key.EncryptionKey()); err != nil {
+		t.Fatalf("SetEncryptionKey failed: %v", err)
+	}
 
 	logger.Print("test from main1")
 	logger.Print("second line ")

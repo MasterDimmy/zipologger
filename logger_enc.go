@@ -1,37 +1,31 @@
 package zipologger
 
 import (
-	"sync"
+	"fmt"
+
 	"github.com/MasterDimmy/zipologger/enc"
 )
 
-type globalEncrypt struct {
-	m   sync.Mutex
-	key *enc.KeyEncrypt
-}
-
-var globalEncryptor globalEncrypt
-
 func SetGlobalEncryption(key string) bool {
-	globalEncryptor.m.Lock()
-	defer globalEncryptor.m.Unlock()
+	mainGlobalEncryptor.m.Lock()
+	defer mainGlobalEncryptor.m.Unlock()
 
 	k := enc.NewEncryptKey(key)
 	if k == nil {
 		return false
 	}
-	globalEncryptor.key = k
+	mainGlobalEncryptor.key = k
 	return true
 }
 
-func (l *Logger) SetEncryptionKey(key string) *Logger {
+func (l *Logger) SetEncryptionKey(key string) (*Logger, error) {
 	l.m.Lock()
 	defer l.m.Unlock()
 
 	k := enc.NewEncryptKey(key)
 	if k == nil {
-		panic("cant set encryption key")
+		return l, fmt.Errorf("invalid encryption key")
 	}
 	l.encryptionKey = k
-	return l
+	return l, nil
 }
